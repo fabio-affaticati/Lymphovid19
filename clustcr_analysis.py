@@ -6,13 +6,17 @@ from clustcr.clustering.clustering import Clustering
 from src.utils.Enrichment import *
 
 
-RESULTSSDIR = os.path.join(os.path.dirname(__file__), 'results/')
+RESULTSDIR = os.path.join(os.path.dirname(__file__), 'results/')
 
 
 if __name__ == "__main__":
     
-    processed_data = pd.read_csv(RESULTSSDIR + 'preprocessed_data.csv', index_col=0)
+    for directory in [RESULTSDIR]:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
     
+    
+    processed_data = pd.read_csv(RESULTSSDIR + 'preprocessed_data.csv', index_col=0)
     
     # keep baseline samples only
     #processed_data = processed_data[processed_data['TIMEPOINTS'] == 'baseline']
@@ -47,4 +51,4 @@ if __name__ == "__main__":
     ### TO-DO set a threshold for the minimum number of sequences in a cluster
 
     ### Enrichment analysis
-    enrichment_test(res, cluster_count_df, processed_data, 'fisher', 1.0, 'CONDITION', 'Lymphomas', RESULTSSDIR, 'lymphoma_v_healthy')
+    enrichment_test(res, cluster_count_df, processed_data, 'fisher', 1.0, 'CONDITION', 'Lymphomas', RESULTSDIR, 'lymphoma_v_healthy')

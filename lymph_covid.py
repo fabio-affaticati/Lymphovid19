@@ -16,6 +16,10 @@ TCREXDIR = '/Users/fabioaffaticati/Desktop/Work/TCRex/data/task'
 
 if __name__ == "__main__":
     
+    for directory in [DATADIR, RESULTSDIR, TASKSDIR, PLOTSDIR]:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    
     ### DANGER: This is a data cleaning step that removes files in the directory
     ####################################################################################################################################
     tools.clean_directory(TASKSDIR)

@@ -14,6 +14,10 @@ MIXCRDIR = os.path.join(DATADIR, 'mixcr_results/')
 
 if __name__ == "__main__":
     
+    for directory in [DATADIR, RESULTSDIR]:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    
     metadata = pd.read_excel(DATADIR+'metadata.xlsx')
     metadata['SAMPLE_ID'] = metadata['SAMPLE_ID'].astype(str)
     
