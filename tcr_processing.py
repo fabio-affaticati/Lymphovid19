@@ -21,10 +21,14 @@ if __name__ == "__main__":
     metadata = pd.read_excel(DATADIR+'metadata.xlsx')
     metadata['SAMPLE_ID'] = metadata['SAMPLE_ID'].astype(str)
     
+    
     raw_data = tools.read_raw_data(MIXCRDIR, metadata)
+    
+    
     raw_data = pd.concat(raw_data, ignore_index=True)
     
     
+    # remove CD3s that are shorter than 3 amino acids, longer that 25 and do not start with C and end with F
     raw_data = raw_data[raw_data['aaSeqCDR3'].str.contains('^C[A-Z]{3,25}F$', regex=True, na=False)]
     #raw_data = raw_data[~raw_data['aaSeqCDR3'].str.contains('_') & ~raw_data['aaSeqCDR3'].str.contains('\*')]
     raw_data.reset_index(drop=True, inplace=True)
@@ -39,9 +43,11 @@ if __name__ == "__main__":
     raw_data.loc[regmatch(raw_data.IMGT_VGene_Name.values),'IMGT_VGene_Name'] = raw_data.loc[regmatch(raw_data.IMGT_VGene_Name.values),:]['IMGT_VGene_Name'].str.replace('DV', '/DV')
 
 
+    # Keep only functional genes
     raw_data = tools.keep_functional_genes('IMGT_VGene_Name', raw_data)
-    
     raw_data = tools.keep_functional_genes('IMGT_JGene_Name', raw_data)
+    
+    
     
     raw_data.rename(columns={'IMGT_VGene_Name': 'v_call', 'IMGT_JGene_Name': 'j_call', 'SAMPLE_ID':'sample_id', 'aaSeqCDR3' : 'junction_aa'}, inplace=True)
     

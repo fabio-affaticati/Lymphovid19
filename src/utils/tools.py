@@ -27,10 +27,7 @@ def keep_functional_genes(gene_col, data):
     )
     elif gene_col == 'IMGT_JGene_Name':
         url = (
-        "https://www.imgt.org/genedb/resultPage.action?"
-        "gene.id.species=Homo+sapiens&"
-        "molComponent=TR&"
-        "geneTypeLike=joining&"
+        "https://www.imgt.org/genedb/resultPage.action?gene.id.species=Homo+sapiens&molComponent=TR&geneTypeLike=joining&"
         "allele.fcode=functional&"
         "cloneName=&"
         "locusLike=any&"
@@ -92,7 +89,7 @@ def read_raw_data(mixcrdir, metadata):
             if not raw_tcr.empty:
                 raw_data.append(pd.DataFrame(raw_tcr))
         else: pass
-    
+
     return raw_data
 
 

@@ -167,3 +167,4 @@ data/
 tcrex_tasks/
 results/
 clustcr_batch_tmp*/
+.Rproj.user
