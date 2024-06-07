@@ -32,7 +32,7 @@ if __name__ == "__main__":
     
     
     ####################################################################################################################################
-    plotting.barplot_unique_sequences(data, metadata, PLOTSDIR)
+    #plotting.barplot_unique_sequences(data, metadata, PLOTSDIR)
     ####################################################################################################################################
 
     
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     tcrex_merged.drop_duplicates(subset=['sample_id', 'clonotype', 'TIMEPOINTS'], inplace=True)
     tcrex_merged.reset_index(drop=True, inplace=True)
     tcrex_merged.dropna(inplace=True)
-    plotting.plot_tcrex_predictions(tcrex_merged, metadata, 'TIMEPOINTS', 'CONDITION', PLOTSDIR)
+    #plotting.plot_tcrex_predictions(tcrex_merged, metadata, 'TIMEPOINTS', 'CONDITION', PLOTSDIR)
     ####################################################################################################################################
     
     ####################################################################################################################################
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     tcrex_merged = pd.merge(tcrex_preds, data, on='clonotype', how='inner')#[data.columns] 
     tcrex_merged['TIMEPOINTS'] = pd.Categorical(tcrex_merged['TIMEPOINTS'], categories=['baseline', 'V1', 'V3',], ordered=True)
     tcrex_merged.dropna(inplace=True)
-    plotting.plot_tcrex_predictions_epitopes(tcrex_merged, metadata, 'sample_id', 'epitope', PLOTSDIR)
+    #plotting.plot_tcrex_predictions_epitopes(tcrex_merged, metadata, 'sample_id', 'epitope', PLOTSDIR)
     ####################################################################################################################################
     
     
@@ -87,6 +87,8 @@ if __name__ == "__main__":
     ####################################################################################################################################
     # keep only beta chains
     beta_chain_data = data[data['TCR_Chain'].str.contains('TRB')]
+    print(beta_chain_data)
+    print(beta_chain_data.drop_duplicates(subset=['clonotype', 'sample_id']).shape)
     scatteratio_data = pd.merge(beta_chain_data, tcrex_preds.drop_duplicates(subset=['clonotype']), on='clonotype', how='left', indicator=True)
     
     #scatteratio_data = scatteratio_data.query('TIMEPOINTS == "V1"')
@@ -94,10 +96,13 @@ if __name__ == "__main__":
     # groupby both sample id and CONDITION
     scatteratio_data = scatteratio_data.groupby(['sample_id', 'CONDITION', 'TIMEPOINTS'], as_index=False).apply(lambda x: x['_merge'].value_counts())
     scatteratio_data['totalBeta'] = scatteratio_data['left_only'] + scatteratio_data['both']
-    plotting.plot_scatteratio_tcr_specific(scatteratio_data, PLOTSDIR)
+    #plotting.plot_scatteratio_tcr_specific(scatteratio_data, PLOTSDIR)
+    
+    scatteratio_data['fraction_betas'] = scatteratio_data['both']/scatteratio_data['totalBeta']
+    plotting.plot_scatteratio_breadth(scatteratio_data, metadata, 'TIMEPOINTS', 'CONDITION', PLOTSDIR)
     ####################################################################################################################################
 
-    
+    exit(0)
     
     
     

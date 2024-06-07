@@ -292,7 +292,7 @@ def plot_tcrex_predictions_epitopes(tcrex_data:pd.DataFrame, metadata:pd.DataFra
     #fig = go.Figure()
     for epitope in tcrex_data[hue_col].unique():
         fig = go.Figure()
-        pivoted = tcrex_data.query('epitope == @epitope').pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
+        pivoted = tcrex_data.query('epitope == @epitope').pivot_table(index='junction_aa', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
         # sum all column values into a new column
         pivoted['cloneFractionCovid'] = pivoted.sum(axis=1)
         pivoted.reset_index(inplace=True)
@@ -417,6 +417,34 @@ def plot_scatteratio_tcr_specific(scatteratio_data:pd.DataFrame, plotsdir:str) -
     plt.ylabel('Covid-predicted beta chains')
     plt.tight_layout()
     plt.savefig(plotsdir + 'scatteratio.png', dpi=600, bbox_inches='tight')
+    
+def plot_scatteratio_breadth(scatteratio_data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
+
+    fig = go.Figure()
+    for condition in scatteratio_data[hue_col].unique():
+        
+        aux = scatteratio_data.query('CONDITION == @condition')
+        fig.add_trace(go.Box(y=aux['fraction_betas'], x=aux[xaxis_col],
+                            name=condition,
+                            hovertext = aux['sample_id'],
+                            boxpoints='all',
+                            jitter=0.3, ))
+
+        fig.update_layout(boxmode='group')
+    
+         
+    fig.update_layout(font=dict(
+            size=14,
+            family=FONT,
+        ),
+        legend_title= 'Condition',
+        xaxis_title='Timepoint',
+        yaxis_title='Covid Specific ratio of beta chains',
+        template='plotly_white',
+    )
+    fig.update_yaxes(range=[min(scatteratio_data['fraction_betas'])-0.05, max(scatteratio_data['fraction_betas'])+0.05])
+    
+    fig.write_image(plotsdir+"scatteratio_breadth.png", scale = 4)
     
 
 def plot_scatter_presence(covid_spec_data, plotsdir):
