@@ -13,9 +13,9 @@ import plotly.io as pio
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-import rpy2.robjects as ro
-from rpy2.robjects.packages import importr
-from rpy2.robjects import r, pandas2ri
+#import rpy2.robjects as ro
+#from rpy2.robjects.packages import importr
+#from rpy2.robjects import r, pandas2ri
 
 
 FONT = 'JetBrains Mono'
@@ -128,6 +128,7 @@ def scatter_clone_fractions_old(clone_fractions_pivoted, plotsdir):
         sliced_pivoted_clones = clone_fractions_pivoted.loc[(sample, ['baseline', 'V1']), :]
         try:
             # Add scatter to go.Figure()
+            # use a columns for the opcity in order to distinguish between Covid specific and not
             fig.add_trace(go.Scatter(x=sliced_pivoted_clones.loc[sample, 'baseline'],
                                     y=sliced_pivoted_clones.loc[sample, 'V1'],
                                     mode='markers', opacity=0.5,
@@ -152,41 +153,40 @@ def scatter_clone_fractions_old(clone_fractions_pivoted, plotsdir):
     
     
     
-def scatter_clone_fractions(clone_fractions_pivoted, colors, plotsdir):
+def scatter_clone_fractions(clone_fractions_pivoted, colors, opacities, plotsdir):
     
     num_samples = len(clone_fractions_pivoted.index.get_level_values(0).unique())
     fig, axes = plt.subplots(num_samples, 1, figsize=(8, 6 * num_samples))
 
     for i, sample in enumerate(clone_fractions_pivoted.index.get_level_values(0).unique()):
-        if sample in ['s_10', 's_4', 's_8', 's_9']:
-            try:
-                sliced_pivoted_clones = clone_fractions_pivoted.loc[(sample, ['baseline', 'V1']), :]
-                # Add scatter plot to each subplot
-                sns.scatterplot(data=sliced_pivoted_clones,
-                                x=sliced_pivoted_clones.loc[sample, 'baseline'],
-                                y=sliced_pivoted_clones.loc[sample, 'V1'],
-                                alpha = .1,
-                                color=colors,
-                                ax=axes[i])
-                axes[i].set_title(sample)
-                axes[i].set_xlabel('baseline')
-                axes[i].set_ylabel('V1')
-                axes[i].set_xscale('log')
-                axes[i].set_yscale('log')
-                
-                
-                # add a diagonal line
-                axes[i].plot([min(sliced_pivoted_clones.loc[sample, 'baseline']), max(sliced_pivoted_clones.loc[sample, 'baseline'])],
-                             [min(sliced_pivoted_clones.loc[sample, 'V1']), max(sliced_pivoted_clones.loc[sample, 'V1'])], color='black')
-                
-                # change font of sns plot
-                for item in ([axes[i].title, axes[i].xaxis.label, axes[i].yaxis.label] +
-                        axes[i].get_xticklabels() + axes[i].get_yticklabels()):
-                    item.set_fontsize(12)
-                    item.set_fontname(FONTSNS)
-                
-            except KeyError:
-                pass
+        try:
+            sliced_pivoted_clones = clone_fractions_pivoted.loc[(sample, ['baseline', 'V1']), :]
+            # Add scatter plot to each subplot
+            sns.scatterplot(data=sliced_pivoted_clones,
+                            x=sliced_pivoted_clones.loc[sample, 'baseline'],
+                            y=sliced_pivoted_clones.loc[sample, 'V1'],
+                            alpha = opacities,
+                            color=colors,
+                            ax=axes[i])
+            axes[i].set_title(sample)
+            axes[i].set_xlabel('baseline')
+            axes[i].set_ylabel('V1')
+            axes[i].set_xscale('log')
+            axes[i].set_yscale('log')
+            
+            
+            # add a diagonal line
+            axes[i].plot([min(sliced_pivoted_clones.loc[sample, 'baseline']), max(sliced_pivoted_clones.loc[sample, 'baseline'])],
+                            [min(sliced_pivoted_clones.loc[sample, 'V1']), max(sliced_pivoted_clones.loc[sample, 'V1'])], color='black')
+            
+            # change font of sns plot
+            for item in ([axes[i].title, axes[i].xaxis.label, axes[i].yaxis.label] +
+                    axes[i].get_xticklabels() + axes[i].get_yticklabels()):
+                item.set_fontsize(12)
+                item.set_fontname(FONTSNS)
+            
+        except KeyError:
+            pass
             
             
     plt.tight_layout()
@@ -237,11 +237,11 @@ def alpha_diversity_tcr(abundances, pairs, res_dir):
     plt.close()
     
     
-def plot_tcrex_predictions(tcrex_data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
+def plot_predictions(data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
     fig = go.Figure()
-    for condition in tcrex_data[hue_col].unique():
+    for condition in data[hue_col].unique():
         
-        pivoted = tcrex_data.query('CONDITION == @condition').pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
+        pivoted = data.query('CONDITION == @condition').pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
         # sum all column values into a new column and keep only that
         pivoted['cloneFractionCovid'] = pivoted.sum(axis=1)
         pivoted.reset_index(inplace=True)
@@ -256,7 +256,7 @@ def plot_tcrex_predictions(tcrex_data:pd.DataFrame, metadata:pd.DataFrame, xaxis
 
         fig.update_layout(boxmode='group')
     
-    pivoted_total =  tcrex_data.pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
+    pivoted_total =  data.pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
     pivoted_total['cloneFractionCovid'] = pivoted_total.sum(axis=1) 
          
     fig.update_layout(font=dict(
@@ -267,8 +267,11 @@ def plot_tcrex_predictions(tcrex_data:pd.DataFrame, metadata:pd.DataFrame, xaxis
         xaxis_title='Timepoint',
         yaxis_title='Covid Specific clonal fraction',
         template='plotly_white',
+        width=600, height=600
     )
-    fig.update_yaxes(range=[0, max(pivoted_total['cloneFractionCovid'])+0.1])
+    fig.update_yaxes(range=[0, max(pivoted_total['cloneFractionCovid'])+0.001])
+    # plot interactive plot html with plotly
+    fig.write_html(plotsdir+"tcrexpreds.html")
     
     fig.write_image(plotsdir+"tcrexpreds.png", scale = 4)
     
@@ -278,21 +281,25 @@ def plot_tcrex_predictions(tcrex_data:pd.DataFrame, metadata:pd.DataFrame, xaxis
     pivoted_total = pd.merge(pivoted_total, metadata, on='sample_id', how='left')
     
     #pivoted_total[['cloneFractionCovid',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']].to_csv('plotteddata.csv')
-    pandas2ri.activate()
-    ro.r('''
-        source('src/utils/plotting.R')
-    ''')
-    plot_tcrex_preds = ro.globalenv['plot_tcrex_predictions']
-    plot_tcrex_preds(pivoted_total[['cloneFractionCovid',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
+    #pandas2ri.activate()
+    #ro.r('''
+    #    source('src/utils/plotting.R')
+    #''')
+    #plot_preds = ro.globalenv['plot_predictions']
+    #plot_preds(pivoted_total[['cloneFractionCovid',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
     
     
+    
+     
 
 ### Alternative way to plot the data
-def plot_tcrex_predictions_epitopes(tcrex_data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
+def plot_predictions_epitopes(data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
+    
+    # group by epitope and sample_id and sum the cloneFraction
     #fig = go.Figure()
-    for epitope in tcrex_data[hue_col].unique():
+    for epitope in data[hue_col].unique():
         fig = go.Figure()
-        pivoted = tcrex_data.query('epitope == @epitope').pivot_table(index='junction_aa', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
+        pivoted = data.query('epitope == @epitope').pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
         # sum all column values into a new column
         pivoted['cloneFractionCovid'] = pivoted.sum(axis=1)
         pivoted.reset_index(inplace=True)
@@ -313,7 +320,7 @@ def plot_tcrex_predictions_epitopes(tcrex_data:pd.DataFrame, metadata:pd.DataFra
             yaxis_title='Covid Specific clonal fraction',
             template='plotly_white',
         )
-        fig.update_yaxes(range=[0, max(pivoted['cloneFractionCovid'])+0.001])
+        fig.update_yaxes(range=[0, max(pivoted['cloneFractionCovid'])])
         
         fig.write_image(plotsdir+'epitope_sum_spec/'+str(epitope)+"_tcrexpreds_epitope.png", scale = 4)
         
@@ -351,7 +358,7 @@ def plot_tcrex_predictions_epitopes(tcrex_data:pd.DataFrame, metadata:pd.DataFra
             yaxis_title='Covid Specific clonal fraction',
             template='plotly_white',
             height=1200,  # Adjust height as needed
-            width=1600,   # Adjust width as needed
+            width=2200,   # Adjust width as needed
             showlegend=False
         )
 
@@ -405,18 +412,23 @@ def plot_tcrex_predictions_epitopes(tcrex_data:pd.DataFrame, metadata:pd.DataFra
     
     
     
-    
-    
-    
-    
+def plot_clonalfraction_antibody(scatteratio_data:pd.DataFrame, plotsdir:str) -> None:
+    sns.scatterplot(data=scatteratio_data, x='AB_TITER', y='cloneFraction', hue='CONDITION', style='TIMEPOINTS', alpha = .5)
+    #plt.yscale('log')
+    plt.xlabel('AB titers')
+    plt.ylabel('Covid Specific clonal fraction')
+    plt.tight_layout()
+    plt.savefig(plotsdir + 'clonalfraction_antibody.png', dpi=600, bbox_inches='tight')
+    plt.close()
     
     
 def plot_scatteratio_tcr_specific(scatteratio_data:pd.DataFrame, plotsdir:str) -> None:
-    sns.scatterplot(data=scatteratio_data, x='totalBeta', y='both', hue='TIMEPOINTS', style='CONDITION')
+    sns.scatterplot(data=scatteratio_data, x='totalBeta', y='both', hue='TIMEPOINTS', style='CONDITION', alpha = .5)
     plt.xlabel('Total number of Unique beta chains')
     plt.ylabel('Covid-predicted beta chains')
     plt.tight_layout()
     plt.savefig(plotsdir + 'scatteratio.png', dpi=600, bbox_inches='tight')
+    plt.close()
     
 def plot_scatteratio_breadth(scatteratio_data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
 
@@ -424,7 +436,7 @@ def plot_scatteratio_breadth(scatteratio_data:pd.DataFrame, metadata:pd.DataFram
     for condition in scatteratio_data[hue_col].unique():
         
         aux = scatteratio_data.query('CONDITION == @condition')
-        fig.add_trace(go.Box(y=aux['fraction_betas'], x=aux[xaxis_col],
+        fig.add_trace(go.Box(y=aux['fraction_sequences'], x=aux[xaxis_col],
                             name=condition,
                             hovertext = aux['sample_id'],
                             boxpoints='all',
@@ -439,12 +451,41 @@ def plot_scatteratio_breadth(scatteratio_data:pd.DataFrame, metadata:pd.DataFram
         ),
         legend_title= 'Condition',
         xaxis_title='Timepoint',
-        yaxis_title='Covid Specific ratio of beta chains',
+        yaxis_title='Covid Specific fraction of sequences (breadth)',
         template='plotly_white',
     )
-    fig.update_yaxes(range=[min(scatteratio_data['fraction_betas'])-0.05, max(scatteratio_data['fraction_betas'])+0.05])
+    fig.update_yaxes(range=[min(scatteratio_data['fraction_sequences'])-0.0005, max(scatteratio_data['fraction_sequences'])+0.0005])
     
     fig.write_image(plotsdir+"scatteratio_breadth.png", scale = 4)
+    
+    
+    
+    
+    #to_plot = pd.merge(scatteratio_data, metadata, on=['sample_id', 'CONDITION', 'TIMEPOINTS'], how='left')
+    #pandas2ri.activate()
+    #ro.r('''
+    #    source('src/utils/plotting.R')
+    #''')
+    #plot_scatteratio_breadth = ro.globalenv['plot_scatteratio_breadth']
+    #plot_scatteratio_breadth(to_plot[['fraction_betas',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
+    
+    
+    
+    
+    
+    
+    
+    scatteratio_data = pd.merge(scatteratio_data, metadata[['sample_id', 'AB_TITER']], on = 'sample_id', how='left')
+    sns.scatterplot(data=scatteratio_data, x='AB_TITER', y='fraction_sequences', hue='CONDITION', style='TIMEPOINTS', alpha = .5)
+    #plt.yscale('log')
+    plt.xlabel('AB titers')
+    plt.ylabel('Covid Specific fraction of sequences (breadth)')
+    plt.tight_layout()
+    plt.savefig(plotsdir + 'breadth_antibody.png', dpi=600, bbox_inches='tight')
+    plt.close()
+    
+    
+
     
 
 def plot_scatter_presence(covid_spec_data, plotsdir):

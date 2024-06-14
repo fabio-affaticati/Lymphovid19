@@ -84,7 +84,7 @@ def read_raw_data(mixcrdir, metadata):
             
             raw_tcr['cloneFraction'] = raw_tcr['cloneFraction']/len(matching)
             
-            print(f"Sample name: {sample_name} \t\t N_unique CDR3: {len(raw_tcr['aaSeqCDR3'].unique())}")
+            print(f"Sample name: {sample_name} \t\t N_unique CDR3: {len(raw_tcr['aaSeqCDR3'].unique())} \t\t Number of files: {len(matching)}")
             
             if not raw_tcr.empty:
                 raw_data.append(pd.DataFrame(raw_tcr))
