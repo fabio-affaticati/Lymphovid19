@@ -12,6 +12,42 @@ RESULTSDIR = os.path.join(os.path.dirname(__file__), 'results/')
 MIXCRDIR = os.path.join(DATADIR, 'mixcr_results/')
 
 
+aminoacids = "ACDEFGHIKLMNPQRSTVWY"
+_aminoacids_set = set(aminoacids)
+
+
+def _is_aaseq(seq: str):
+    """
+    Check if string contains non-amino acid characters.
+    Returns True if string only contains standard amino acid characters.
+    """
+    try:
+        return all(c in _aminoacids_set for c in seq)
+    except TypeError:
+        return False
+    
+    
+def _is_cdr3(seq: str):
+    """
+    Checks if string is a valid CDR3 amino acid sequence,
+    according to the following defenitions:
+        - First amino acid character is C.
+        - Last amino acid is F or W.
+        - Sequence exclusively contains valid amino acid characters.
+    """
+    try:
+        return (
+            _is_aaseq(seq)
+            and (seq[0] == "C")
+            and (seq[-1] in ["F", "W", "C"])
+            and (len(seq) <= 30)
+            and (len(seq) >= 4)
+        )
+    # Exclude non-string type input
+    except TypeError:
+        return False
+
+
 if __name__ == "__main__":
     
     for directory in [DATADIR, RESULTSDIR]:
@@ -23,13 +59,16 @@ if __name__ == "__main__":
     
     
     raw_data = tools.read_raw_data(MIXCRDIR, metadata)
-    
-    
     raw_data = pd.concat(raw_data, ignore_index=True)
-    
+    raw_data.reset_index(drop=True,inplace=True)
+    raw_data.to_csv(RESULTSDIR+'raw_data_intermediated.csv', sep=',')
+    #raw_data = pd.read_csv(RESULTSDIR+'raw_data_intermediated.csv', sep=',', index_col = 0, low_memory=False)
+
     
     # remove CD3s that are shorter than 3 amino acids, longer that 25 and do not start with C and end with F
-    raw_data = raw_data[raw_data['aaSeqCDR3'].str.contains('^C[A-Z]{3,25}F$', regex=True, na=False)]
+    #raw_data = raw_data[raw_data['aaSeqCDR3'].str.contains('^C[A-Z]{3,25}F$', regex=True, na=False)]
+    
+    raw_data = raw_data[raw_data.aaSeqCDR3.apply(lambda x: _is_cdr3(x))]
     #raw_data = raw_data[~raw_data['aaSeqCDR3'].str.contains('_') & ~raw_data['aaSeqCDR3'].str.contains('\*')]
     raw_data.reset_index(drop=True, inplace=True)
 

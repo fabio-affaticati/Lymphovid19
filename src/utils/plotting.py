@@ -13,9 +13,9 @@ import plotly.io as pio
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-#import rpy2.robjects as ro
-#from rpy2.robjects.packages import importr
-#from rpy2.robjects import r, pandas2ri
+import rpy2.robjects as ro
+from rpy2.robjects.packages import importr
+from rpy2.robjects import r, pandas2ri
 
 
 FONT = 'JetBrains Mono'
@@ -194,15 +194,17 @@ def scatter_clone_fractions(clone_fractions_pivoted, colors, opacities, plotsdir
     plt.close()
     
     
-def alpha_diversity_tcr(abundances, pairs, res_dir):
+def alpha_diversity_tcr(abundances, pairs, res_dir, type_test):
     
     patients, condition = [el[0] for el in list(abundances.index)], [el[1] for el in list(abundances.index)]
     
-    metrics = ['Shannon_index']
+    metrics = ['Normalised Shannon entropy']
     shannon = alpha_diversity('shannon', abundances, patients)
 
     stat = pd.DataFrame({"Shannon_index": shannon,
                          "Condition": condition})
+    norm_factor = np.log2(len(abundances.columns))
+    stat['Normalised Shannon entropy'] = stat['Shannon_index']/norm_factor
     
     # do a Mann-Whitney U test for each pair of conditions
     for pair in pairs:
@@ -212,18 +214,26 @@ def alpha_diversity_tcr(abundances, pairs, res_dir):
             res = [mannwhitneyu(stat[stat['Condition'] == pos][metric],
                                 stat[stat['Condition'] == neg][metric])[1]]
     
+    
     fig, axes = plt.subplots(1, 1, figsize=(4, 4))
     
     for i, metric in enumerate(metrics):
 
         order = sorted(stat['Condition'].unique())
 
-        sns.swarmplot(data=stat, y = metric, x = 'Condition',hue = 'Condition', linewidth=.5, size=5, order=order, ax=axes)
-        sns.boxplot(data=stat, y = metric, x = 'Condition', hue = 'Condition', dodge= False, saturation = 0, width=0.4, showfliers=False, order=order, ax=axes)
+        # assign to the Conditions specific colors
+        colors = {'Healthy': 'blue', 'Lymphomas': 'red'}
+        sns.swarmplot(data=stat, y=metric, x='Condition', hue='Condition', linewidth=.5, size=5, palette=colors, order=order, ax=axes)
+        sns.boxplot(data=stat, y = metric, x = 'Condition', hue = 'Condition', dodge= False, saturation = 0, width=0.4, showfliers=False, palette=colors, order=order, ax=axes)
+        # select the hues of the boxplot
+
+            
         plt.tight_layout()
         
     # annotate the plot with the p-value
-    axes.text(0.1, max(shannon)-0.01, 'MW-pvalue={:.5f}'.format(res[0]), ha='center', va='center')
+    axes.text(.5, .9, 'MW-pvalue={:.3f}'.format(res[0]), ha='center', va='center')
+
+
 
     # change font of sns plot
     for item in ([axes.title, axes.xaxis.label, axes.yaxis.label] +
@@ -232,16 +242,20 @@ def alpha_diversity_tcr(abundances, pairs, res_dir):
         item.set_fontname(FONTSNS)
         
     plt.legend([],[], frameon=False)
-    plt.title('Baseline V gene Shannon entropies')
-    fig.savefig(res_dir + 'alpha_diversity.png', dpi=600, bbox_inches='tight')
+    # set limits of y axis
+    axes.set_ylim(0,1)
+    plt.title(type_test + ' Shannon entropies')
+    fig.savefig(res_dir + 'alpha_diversity' + type_test + '.png', dpi=600, bbox_inches='tight')
     plt.close()
     
     
 def plot_predictions(data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
+    # Define colors for conditions
+    colors = {'Healthy': 'blue', 'Lymphomas': 'red'}
     fig = go.Figure()
     for condition in data[hue_col].unique():
         
-        pivoted = data.query('CONDITION == @condition').pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
+        pivoted = data.query('CONDITION == @condition').pivot_table(index='junction_aa', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
         # sum all column values into a new column and keep only that
         pivoted['cloneFractionCovid'] = pivoted.sum(axis=1)
         pivoted.reset_index(inplace=True)
@@ -252,11 +266,12 @@ def plot_predictions(data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hu
                             name=condition,
                             hovertext = pivoted['sample_id'],
                             boxpoints='all',
+                            marker=dict(color=colors[condition]),
                             jitter=0.3, ))
 
         fig.update_layout(boxmode='group')
     
-    pivoted_total =  data.pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
+    pivoted_total =  data.pivot_table(index='sample_id', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
     pivoted_total['cloneFractionCovid'] = pivoted_total.sum(axis=1) 
          
     fig.update_layout(font=dict(
@@ -271,26 +286,22 @@ def plot_predictions(data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hu
     )
     fig.update_yaxes(range=[0, max(pivoted_total['cloneFractionCovid'])+0.001])
     # plot interactive plot html with plotly
-    fig.write_html(plotsdir+"tcrexpreds.html")
-    
-    fig.write_image(plotsdir+"tcrexpreds.png", scale = 4)
-    
-    ##### Develop 
-    # map each sample_id to the metadata 'sample_id'
-    pivoted_total.reset_index(inplace=True)
-    pivoted_total = pd.merge(pivoted_total, metadata, on='sample_id', how='left')
-    
-    #pivoted_total[['cloneFractionCovid',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']].to_csv('plotteddata.csv')
-    #pandas2ri.activate()
-    #ro.r('''
-    #    source('src/utils/plotting.R')
-    #''')
-    #plot_preds = ro.globalenv['plot_predictions']
-    #plot_preds(pivoted_total[['cloneFractionCovid',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
+    fig.write_html(plotsdir+"clonal_preds.html")
+    fig.write_image(plotsdir+"clonal_preds.png", scale = 4)
     
     
+    to_plot = data.groupby(['sample_id', 'CONDITION', 'TIMEPOINTS'], as_index=False).apply(lambda x: x['cloneFraction'].sum())
+    to_plot = pd.merge(to_plot, metadata, on=['sample_id', 'CONDITION', 'TIMEPOINTS'], how='left')
+    to_plot.rename(columns={None: 'cloneFraction'}, inplace=True)
+    pandas2ri.activate()
+    ro.r('''
+        source('src/utils/plotting.R')
+    ''')
+    plot_clonal_depth = ro.globalenv['plot_clonal_depth']
+    plot_clonal_depth(to_plot[['cloneFraction', 'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
     
      
+
 
 ### Alternative way to plot the data
 def plot_predictions_epitopes(data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
@@ -430,9 +441,15 @@ def plot_scatteratio_tcr_specific(scatteratio_data:pd.DataFrame, plotsdir:str) -
     plt.savefig(plotsdir + 'scatteratio.png', dpi=600, bbox_inches='tight')
     plt.close()
     
+    
+    
 def plot_scatteratio_breadth(scatteratio_data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
 
+
+    colors = {'Healthy': 'blue', 'Lymphomas': 'red'}
+    
     fig = go.Figure()
+    
     for condition in scatteratio_data[hue_col].unique():
         
         aux = scatteratio_data.query('CONDITION == @condition')
@@ -440,6 +457,7 @@ def plot_scatteratio_breadth(scatteratio_data:pd.DataFrame, metadata:pd.DataFram
                             name=condition,
                             hovertext = aux['sample_id'],
                             boxpoints='all',
+                            marker=dict(color=colors[condition]),
                             jitter=0.3, ))
 
         fig.update_layout(boxmode='group')
@@ -455,34 +473,20 @@ def plot_scatteratio_breadth(scatteratio_data:pd.DataFrame, metadata:pd.DataFram
         template='plotly_white',
     )
     fig.update_yaxes(range=[min(scatteratio_data['fraction_sequences'])-0.0005, max(scatteratio_data['fraction_sequences'])+0.0005])
-    
     fig.write_image(plotsdir+"scatteratio_breadth.png", scale = 4)
+    fig.write_html(plotsdir+"scatteratio_breadth.html")
     
     
     
+    to_plot = pd.merge(scatteratio_data, metadata, on=['sample_id', 'CONDITION', 'TIMEPOINTS', 'SAMPLE'], how='left')
+    pandas2ri.activate()
+    ro.r('''
+        source('src/utils/plotting.R')
+    ''')
+    plot_scatteratio_breadth = ro.globalenv['plot_scatteratio_breadth']
+    plot_scatteratio_breadth(to_plot[['fraction_sequences',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
     
-    #to_plot = pd.merge(scatteratio_data, metadata, on=['sample_id', 'CONDITION', 'TIMEPOINTS'], how='left')
-    #pandas2ri.activate()
-    #ro.r('''
-    #    source('src/utils/plotting.R')
-    #''')
-    #plot_scatteratio_breadth = ro.globalenv['plot_scatteratio_breadth']
-    #plot_scatteratio_breadth(to_plot[['fraction_betas',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
-    
-    
-    
-    
-    
-    
-    
-    scatteratio_data = pd.merge(scatteratio_data, metadata[['sample_id', 'AB_TITER']], on = 'sample_id', how='left')
-    sns.scatterplot(data=scatteratio_data, x='AB_TITER', y='fraction_sequences', hue='CONDITION', style='TIMEPOINTS', alpha = .5)
-    #plt.yscale('log')
-    plt.xlabel('AB titers')
-    plt.ylabel('Covid Specific fraction of sequences (breadth)')
-    plt.tight_layout()
-    plt.savefig(plotsdir + 'breadth_antibody.png', dpi=600, bbox_inches='tight')
-    plt.close()
+
     
     
 

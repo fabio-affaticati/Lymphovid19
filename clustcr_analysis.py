@@ -16,7 +16,7 @@ if __name__ == "__main__":
             os.makedirs(directory)
     
     
-    processed_data = pd.read_csv(RESULTSSDIR + 'preprocessed_data.csv', index_col=0)
+    processed_data = pd.read_csv(RESULTSDIR + 'preprocessed_data.csv', index_col=0)
     
     # keep baseline samples only
     #processed_data = processed_data[processed_data['TIMEPOINTS'] == 'baseline']

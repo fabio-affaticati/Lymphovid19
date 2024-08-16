@@ -82,7 +82,12 @@ def read_raw_data(mixcrdir, metadata):
             raw_tcr = raw_tcr.groupby(['aaSeqCDR3', 'SAMPLE_ID', 'SAMPLE', 'TIMEPOINTS', 'CONDITION', 'IMGT_JGene_Name', 'IMGT_VGene_Name', 'TCR_Chain'], as_index=False).agg({'cloneFraction': 'sum', 'cloneCount': 'sum'})
             raw_tcr.reset_index(drop=True,inplace=True)
             
-            raw_tcr['cloneFraction'] = raw_tcr['cloneFraction']/len(matching)
+            
+            ###### Normalize cloneFraction
+            #raw_tcr = raw_tcr.query('TCR_Chain == "TRB"')
+            raw_tcr['cloneFraction_old'] = raw_tcr['cloneFraction']/len(matching)
+            raw_tcr['cloneFraction'] = raw_tcr['cloneCount']/raw_tcr['cloneCount'].sum()
+            ######
             
             print(f"Sample name: {sample_name} \t\t N_unique CDR3: {len(raw_tcr['aaSeqCDR3'].unique())} \t\t Number of files: {len(matching)}")
             

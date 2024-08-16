@@ -162,9 +162,20 @@ cython_debug/
 #.idea/
 
 
+# extensions
+*.csv
+*.tsv
+*.txt
+*.pptx
+*.docx
+*.xlsx
+*.Rproj
+
 # directories
 data/
 tcrex_tasks/
 results/
 clustcr_batch_tmp*/
 .Rproj.user
+.RData
+.Rhistory
