@@ -136,3 +136,15 @@ def copy_most_recent_directory(source_path, destination_path):
     shutil.copytree(item_path, os.path.join(destination_path, most_recent_directory))
     
     
+def convert_pvalue_to_asterisks(pvalue):
+    if pvalue <= 0.0001:
+        return "****"
+    elif pvalue <= 0.001:
+        return "***"
+    elif pvalue <= 0.01:
+        return "**"
+    elif pvalue < 0.05:
+        return "*"
+    return ""
+    
+    

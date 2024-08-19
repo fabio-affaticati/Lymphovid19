@@ -24,7 +24,7 @@ plot_clonal_depth = function(data, path){
     scale_colour_manual(values = colors) +  # Set line colors manually
     geom_line(aes(group=SAMPLE, colour = CONDITION)) +
     theme_bw(base_size = 10) +
-    #ylim(0.1, 0.3) +
+    ylim(0.0001, 0.0008) +
     labs(title = "Repertoire clonal fraction of Covid-specific TCRs",
          y = "Clonal fraction",
          x = "Timepoint") +
@@ -260,11 +260,11 @@ plot_betweenstats_clone_fraction = function(df, path){
   pwc <- df %>% wilcox_test(cloneFraction ~ TIMEPOINTS, paired = TRUE, p.adjust.method = "BH")
   pwc <- pwc %>% add_xy_position(x = "TIMEPOINTS")
   t <- ggboxplot(df, x = "TIMEPOINTS", y = "cloneFraction", add = "point") +
-    stat_pvalue_manual(pwc, hide.ns = TRUE) +
+    stat_pvalue_manual(pwc, label = "p.adj", hide.ns = FALSE) +
     labs(
       subtitle = get_test_label(res.fried,  detailed = TRUE),
       caption = get_pwc_label(pwc)
-    )
+    ) + scale_y_continuous(trans='log10')
   ggsave(paste0(path,"test.png"), t, width=8)
 
   p1 <- ggstatsplot::ggwithinstats(data = df,
@@ -283,14 +283,16 @@ plot_betweenstats_clone_fraction = function(df, path){
                                        axis.text = element_text(size = 12),  # Adjust axis text size
                                        axis.title = element_text(size = 10)  # Adjust axis title size
                                      ),
+                                   ggplot.component = list(scale_y_log10()),
                                    boxplot.args = list(width = 0.3, alpha = 0.2, color = "gray"),
                                    points.args = list(size = 30, alpha = 1),
                                    violin.args = list(width = 0, alpha = 0, color = "lightgray"),
                                    plot.type = "boxplot", type = "nonparametric",
-                                   geom_signif_args = list(textsize = 30),
+                                   geom_signif_args = list(textsize = 30,
+                                                    y_position = c(0.023, 0.024, 0.025),),
                                    #geom_signif(list(map_signif_level = TRUE)),
                                    centrality.point.args = list(size = 4,color = "#8a0f00"))
-    p1 <- p1 + geom_line(data = df, aes(group = SAMPLE), colour = "lightgray", alpha = 0.5)
+  p1 <- p1 + geom_line(data = df, aes(group = SAMPLE), colour = "lightgray", alpha = 0.5)
   ggsave(paste0(path,"testing_clonefraction_global.png"), p1, width=8)
 
 
@@ -312,6 +314,7 @@ plot_betweenstats_clone_fraction = function(df, path){
                                        axis.text = element_text(size = 12),  # Adjust axis text size
                                        axis.title = element_text(size = 10)  # Adjust axis title size
                                      ),
+                                   #ggplot.component = list(scale_y_log10()),
                                    boxplot.args = list(width = 0.3, alpha = 0.2, color = "gray"),
                                    points.args = list(size = 30, alpha = 1),
                                    violin.args = list(width = 0, alpha = 0, color = "lightgray"),
@@ -331,10 +334,10 @@ plot_betweenstats_clone_fraction = function(df, path){
                  position = position_dodge(0.9)) +
     geom_point(stat = "summary", size = 3, color = "#8a0f00",
                position = position_dodge(0.9), fun = median) +
-    geom_label_repel(stat = "summary", fun = median, size = 3,
-                     aes(label = paste0("hat(mu)*scriptstyle(median)==", 
-                                        round(after_stat(y), 5))),
-                     parse = TRUE, position = position_dodge(0.9)) +
+    #geom_label_repel(stat = "summary", fun = median, size = 3,
+    #                 aes(label = paste0("hat(mu)*scriptstyle(median)==", 
+    #                                    round(after_stat(y), 5))),
+    #                 parse = TRUE, position = position_dodge(0.9)) +
     geom_signif(y_position = 0.0008, xmin = 1:3 - 0.22, xmax = 1:3 + 0.22,
                 annotations = scales::pvalue(sapply(split(df, df$TIMEPOINTS), 
                                                     \(x) wilcox.test(cloneFraction~CONDITION, x, exact = FALSE)$p.value),
@@ -351,7 +354,7 @@ plot_betweenstats_clone_fraction = function(df, path){
           legend.position = "bottom",
           axis.text.y.right = element_blank()) +
     labs(y = "Clone Fraction",
-         x = "Timepoint")
+         x = "Timepoint") + scale_y_continuous(trans='log10')
   ggsave(paste0(path,"testing_clonefraction_betweenconditions.png"), p3, width=8)
 
 
