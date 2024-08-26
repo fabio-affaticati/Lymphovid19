@@ -283,7 +283,7 @@ plot_betweenstats_clone_fraction = function(df, path){
                                        axis.text = element_text(size = 12),  # Adjust axis text size
                                        axis.title = element_text(size = 10)  # Adjust axis title size
                                      ),
-                                   ggplot.component = list(scale_y_log10()),
+                                   #ggplot.component = list(scale_y_log10()),
                                    boxplot.args = list(width = 0.3, alpha = 0.2, color = "gray"),
                                    points.args = list(size = 30, alpha = 1),
                                    violin.args = list(width = 0, alpha = 0, color = "lightgray"),
@@ -354,7 +354,7 @@ plot_betweenstats_clone_fraction = function(df, path){
           legend.position = "bottom",
           axis.text.y.right = element_blank()) +
     labs(y = "Clone Fraction",
-         x = "Timepoint") + scale_y_continuous(trans='log10')
+         x = "Timepoint") #+ scale_y_continuous(trans='log10')
   ggsave(paste0(path,"testing_clonefraction_betweenconditions.png"), p3, width=8)
 
 
