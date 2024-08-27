@@ -1,4 +1,4 @@
-# Copyright © 2024 fabio-affaticati
+# 2024 fabio-affaticati
 
 import os
 import shutil

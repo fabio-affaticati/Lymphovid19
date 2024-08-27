@@ -1,200 +1,231 @@
-# Copyright © 2024 fabio-affaticati
-
+# 2024 fabio-affaticati
 import pandas as pd
 import numpy as np
+
+
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.io as pio
+import matplotlib.pyplot as plt
+from plotly.subplots import make_subplots
+import seaborn as sns
+
 from skbio.diversity import alpha_diversity
 from scipy.stats import mannwhitneyu
 from statsmodels.stats.multitest import multipletests
 
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import plotly.io as pio
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-import rpy2.robjects as ro
-from rpy2.robjects.packages import importr
-from rpy2.robjects import r, pandas2ri
-
+from src.utils import tools
 
 FONT = 'JetBrains Mono'
 FONTSNS =  'DejaVu Sans'
 
 
-def volcano_plot(total, plotname, file_name, plotsdir):
+def plot_nuniques_clonecounts(data, plotsdir):
     
-    minchange = min(total['log2_fold_change']) -1
-    maxchange = max(total['log2_fold_change']) +1
-    logsig = abs(np.log10(0.05))
+    fig = px.scatter(data.query('TCR_Chain == "TRB"'), x='countUniqueCDR3', y='cloneCount',
+                color='CONDITION', symbol='TIMEPOINTS', opacity=0.7,
+                color_discrete_sequence=['red', 'blue'])
 
-    fig = px.scatter(total.drop_duplicates(subset=['cluster']), x='log2_fold_change', y='log10_corrected_p_value_fdr_bh',
-                    color='chain',
-                    #text = 'cluster',
-                    hover_data = ['motif', 'negative', 'positive'],
-                    size = 'dot_size',
-                    symbol='chain',
-                    marginal_x='rug', marginal_y='rug',
-                    title=plotname,
-                    template='plotly_white',  # Choose a template (e.g., 'plotly', 'plotly_white', 'plotly_dark')
-                    color_discrete_map={'A': 'blue', 'B': 'orange'},  # Define colors for categories
-                    opacity=0.3,  # Adjust marker opacity
-                    #symbol='circle',  # Set marker symbol
-                    #size_max=10,  # Set maximum marker size
-                    width=1500, height=800
-                    )
-
-    fig.update_layout(shapes=[dict(type='line', x0=minchange, x1=maxchange,
-                                y0=logsig, y1=logsig,
-                                line=dict(color='red', width=1, dash='dash'))])
-    
-    
-    fig.update_traces(marker=dict(line=dict(color='black', width=.5)))
-    
-    fig.update_layout(font=dict(
-            size=14,
-            family=FONT,
-        ),
-        legend_title= "Chain",
-        xaxis_title='Log2FoldChange',
-        yaxis_title='Log10CorrectedPvalue',
-        xaxis_range=[minchange, maxchange],
-    )
-    #fig.show()
-    pio.write_image(fig, plotsdir + "volcano_" + file_name + ".png", engine='kaleido')
-
-
-
-def calculate_dot_size(df):
-    if df['negative'] == 0:
-        return df['positive']
-    elif df['positive'] == 0:
-        return df['negative']
-    else:
-        return np.round( abs( max(df['positive'], df['negative']) / min(df['positive'],df['negative']) ) )
-    
-    
-def barplot_unique_sequences(data, metadata, plotsdir):
-    
-    uniques = pd.DataFrame({'countUniqueCDR3': data.groupby(['sample_id', 'TCR_Chain'])['junction_aa'].nunique()}).reset_index()
-    uniques = pd.merge(uniques, metadata, on = 'sample_id', how='left')
-
-    ggplot2_colors = ['#E41A1C', '#377EB8', '#4DAF4A', '#FF7F00']
-    
-    fig = px.bar(uniques, x="sample_id", y="countUniqueCDR3", color="TCR_Chain",
-                #log_y = True, #text="countUniqueCDR3", 
-                facet_row="CONDITION", 
-                #pattern_shape="condition", pattern_shape_sequence=[".", "x", "+"],
-                width=1500, height=800,
-                template='plotly_white', 
-                color_discrete_map=dict(zip(uniques['TCR_Chain'].unique(), ggplot2_colors)),
-                )
+    fig.add_vline(x = 0, line_width=2, line_color="black")
     fig.update_layout(
-        title='Unique CDR3 sequences per sample',
-        xaxis_title='Samples',
+        title='Number of unique CDR3s vs Summed Clone Counts',
+        xaxis_title='Number of Unique CDR3s',
+        yaxis_title='Summed Clone Counts',
+        width=800,
+        plot_bgcolor='white',
+        font=dict(
+            family=FONT,
+            size=12,
+            color='black'
+        ),
+        legend=dict(
+            title='Condition',
+            title_font_family=FONT,
+            title_font_size=12,
+            font=dict(
+                family=FONTSNS,
+                size=10,
+                color='black'
+            )
+        )
+    )
+
+    fig.update_xaxes(
+        mirror=True,
+        ticks='outside',
+        showline=True,
+        linecolor='black',
+        showgrid=False
+    )
+    fig.update_yaxes(
+        mirror=True,
+        ticks='outside',
+        showline=True,
+        linecolor='black',
+        showgrid=False
+    )
+    fig.show()
+    fig.write_image(plotsdir + 'summed_clonecounts_vs_unique_cdr3s.png', scale = 4)
+    
+
+
+def test_global_repertoire_differnces(data, plotsdir):
+    
+    repertoire_comparison = data[['sample_id', 'SAMPLE', 'countUniqueCDR3', 'cloneCount', 'normalizedUniqueCDR3', 'CONDITION', 'TIMEPOINTS', 'TCR_Chain']]
+    repertoire_comparison = repertoire_comparison.sort_values(by=['SAMPLE'])
+    repertoire_comparison = repertoire_comparison.query('TCR_Chain == "TRB"')
+
+    ref_dict = {}
+    for condition in repertoire_comparison['CONDITION'].unique():
+            ref_dict[condition] = {}
+            for timepoint in repertoire_comparison['TIMEPOINTS'].unique():
+                ref_dict[condition][timepoint] = repertoire_comparison.query('CONDITION == @condition and TIMEPOINTS == @timepoint')['normalizedUniqueCDR3'].values
+                ref_dict[condition]['Mean_'+timepoint] = np.mean(repertoire_comparison.query('CONDITION == @condition and TIMEPOINTS == @timepoint')['normalizedUniqueCDR3'].values)
+                ref_dict[condition]['SD_'+timepoint] = np.std(repertoire_comparison.query('CONDITION == @condition and TIMEPOINTS == @timepoint')['normalizedUniqueCDR3'].values)
+                ref_dict[condition]['Labels_'+timepoint] = repertoire_comparison.query('CONDITION == @condition and TIMEPOINTS == @timepoint')['SAMPLE'].values
+                
+    ### Mann Whitney U test
+    mw_tests = {}
+    for timepoint in repertoire_comparison['TIMEPOINTS'].unique():
+        stat, p_value = mannwhitneyu(ref_dict['Healthy'][timepoint], ref_dict['Lymphomas'][timepoint], alternative='two-sided')
+        mw_tests[timepoint] = {'stat': stat, 'p_value': p_value}
+        
+    max_x = max([max(ref_dict[condition][timepoint]) for condition in repertoire_comparison['CONDITION'].unique() for timepoint in repertoire_comparison['TIMEPOINTS'].unique()])
+
+    fig, ax = plt.subplots(2, 3, figsize=(10, 6), sharex=True)
+    for i, condition in enumerate(repertoire_comparison['CONDITION'].unique()):
+        for j, timepoint in enumerate(repertoire_comparison['TIMEPOINTS'].unique()):
+            ax[i][j].errorbar(x=ref_dict[condition][timepoint], 
+                            y=ref_dict[condition]['Labels_'+timepoint],
+                            xerr=ref_dict[condition]['SD_'+timepoint], 
+                            fmt='o', color='k')
+            
+            ax[i][j].set_title(condition+' '+timepoint)
+            ax[i][j].axvline(ref_dict[condition]['Mean_'+timepoint], ls='--')
+            
+            # get pvalue from mw_tests
+            p_value = mw_tests[timepoint]['p_value']
+            stat = mw_tests[timepoint]['stat']
+            if p_value > 0.05:
+                ax[i][j].set_facecolor('lightgrey')
+            else:
+                if stat > 0:
+                    ax[0][j].set_facecolor('lightcoral')
+                    ax[0][j].annotate('MW two-sided\npval = {:.4f}'.format(p_value), xy=(0.6, .8), xycoords='axes fraction', fontsize=8, color='black')
+                else:
+                    ax[1][j].set_facecolor('lightcoral')
+                    ax[1][j].annotate('MW two-sided\npval = {:.4f}'.format(p_value), xy=(0.6, .8), xycoords='axes fraction', fontsize=8, color='black')
+            
+            if j == 0:
+                ax[i][j].set_ylabel('Sample')
+            if (j == 1) and (i == 1):
+                ax[i][j].set_xlabel('Normalized Unique CDR3s')
+            if i == 1:
+                plt.setp(ax[1][j].get_xticklabels(), rotation=45)
+            
+
+    plt.xlim(0, max_x+0.05)
+    fig.show()
+    fig.savefig(plotsdir + 'errorbar_plot.png', dpi=600, bbox_inches='tight')   
+
+
+
+
+def plot_repertoire_sizes(data, plotsdir):
+    
+    fig = make_subplots(rows=2, cols=2, shared_yaxes=True, subplot_titles=("Healthy TRA", "Lymphomas TRA", "Healthy TRB", "Lymphomas TRB"))
+
+    timepoint_colors = {
+        "baseline": '#004D40',
+        "V1": '#1E88E5',
+        "V3": '#FFC107'
+    }
+
+    healthy_data = data.query('CONDITION == "Healthy" and TCR_Chain == "TRA"')
+
+    for timepoint in healthy_data["TIMEPOINTS"].unique():
+        filtered_data = healthy_data[healthy_data["TIMEPOINTS"] == timepoint]
+        fig.add_trace(
+            go.Bar(x=filtered_data["SAMPLE"], y=filtered_data["normalizedUniqueCDR3"],
+                name=timepoint, #text=filtered_data["normalizedUniqueCDR3"], 
+                marker=dict(color=timepoint_colors[timepoint], line=dict(width=0.5)),
+                showlegend=True),
+            row=1, col=1
+        )
+        
+    lymphomas_data = data.query('CONDITION == "Lymphomas" and TCR_Chain == "TRA"')
+    for timepoint in lymphomas_data["TIMEPOINTS"].unique():
+        filtered_data = lymphomas_data[lymphomas_data["TIMEPOINTS"] == timepoint]
+        fig.add_trace(
+            go.Bar(x=filtered_data["SAMPLE"], y=filtered_data["normalizedUniqueCDR3"],
+                name=timepoint, #text=filtered_data["normalizedUniqueCDR3"],
+                marker=dict(color=timepoint_colors[timepoint], line=dict(width=0.5)),
+                showlegend=False),
+            row=1, col=2
+        )
+        
+    healthy_data = data.query('CONDITION == "Healthy" and TCR_Chain == "TRB"')
+    for timepoint in healthy_data["TIMEPOINTS"].unique():
+        filtered_data = healthy_data[healthy_data["TIMEPOINTS"] == timepoint]
+        fig.add_trace(
+            go.Bar(x=filtered_data["SAMPLE"], y=filtered_data["normalizedUniqueCDR3"],
+                name=timepoint, #text=filtered_data["normalizedUniqueCDR3"], 
+                marker=dict(color=timepoint_colors[timepoint], line=dict(width=0.5)),
+                showlegend=False),
+            row=2, col=1
+        )
+        
+    lymphomas_data = data.query('CONDITION == "Lymphomas" and TCR_Chain == "TRB"')
+    for timepoint in lymphomas_data["TIMEPOINTS"].unique():
+        filtered_data = lymphomas_data[lymphomas_data["TIMEPOINTS"] == timepoint]
+        fig.add_trace(
+            go.Bar(x=filtered_data["SAMPLE"], y=filtered_data["normalizedUniqueCDR3"],
+                name=timepoint, #text=filtered_data["normalizedUniqueCDR3"],
+                marker=dict(color=timepoint_colors[timepoint], line=dict(width=0.5)),
+                showlegend=False),
+            row=2, col=2
+        )
+        
+        
+        
+    # Update axis title for all subplots
+    fig.update_xaxes(title_text="Sample", row=1, col=1)
+    fig.update_xaxes(title_text="Sample", row=1, col=2)
+    fig.update_xaxes(title_text="Sample", row=2, col=1)
+    fig.update_xaxes(title_text="Sample", row=2, col=2)
+
+    fig.update_yaxes(title_text="Normalised unique CDR3", row=1, col=1)
+    fig.update_yaxes(title_text="Normalised unique CDR3", row=2, col=1)
+        
+    fig.update_traces(
+        textfont_size=12, textangle=0, textposition="outside", cliponaxis=False, marker_line_width=2,
+        
+    )
+    fig.update_layout(
         font=dict(family=FONT, size=12),
         #paper_bgcolor='rgb(243, 243, 243)',
         #plot_bgcolor='rgb(243, 243, 243)',
         barmode='group',
         bargap=0.1,
-    )
-
-    fig.update_traces(
-        textfont_size=12, textangle=0, textposition="outside", cliponaxis=False, marker_line_width=2,
-        
+        title_text="Comparison of Unique CDR3 Ratios",
+        xaxis_title="Sample",
+        yaxis_title="Normalised unique CDR3",
+        legend_title="Timepoints",
+        height = 1000,
+        width = 1800,
+        template="plotly_white"
     )
     fig.update_yaxes(tickangle=45, tickmode='array', showgrid = False)
     fig.update_xaxes(tickangle=45, showgrid=True)
-    #fig.show()
-    pio.write_image(fig, plotsdir+"barplot_counts.png", engine='kaleido')
-    
-    
-def scatter_clone_fractions_old(clone_fractions_pivoted, plotsdir):
-    
-    # clone_fractions_pivoted is a multiiindex dataframe with the following structure:
-    # SAMPLE | TIMEPOINTS | clonotype1 | clonotype2 | ... | clonotypeN
-    # sample1 | baseline | 0.1 | 0.2 | ... | 0.3
-    # sample1 | V1 | 0.2 | 0.3 | ... | 0.4
-    # ...
-    # sampleN | baseline | 0.3 | 0.4 | ... | 0.5
-    # sampleN | V1 | 0.4 | 0.5 | ... | 0.6
-    
-    # plot a scatter plot of the clone fractions at baseline and V1 (axis x and y, respectively)
-    # one trace for every sample (first level of the multiindex)
-    
-    fig = go.Figure()
-    
-    for sample in clone_fractions_pivoted.index.get_level_values(0).unique():
-        sliced_pivoted_clones = clone_fractions_pivoted.loc[(sample, ['baseline', 'V1']), :]
-        try:
-            # Add scatter to go.Figure()
-            # use a columns for the opcity in order to distinguish between Covid specific and not
-            fig.add_trace(go.Scatter(x=sliced_pivoted_clones.loc[sample, 'baseline'],
-                                    y=sliced_pivoted_clones.loc[sample, 'V1'],
-                                    mode='markers', opacity=0.5,
-                                    name=sample))
-        except KeyError:
-            pass
-        
-    # Set axis labels
-    fig.update_layout(xaxis_title='baseline',
-                    yaxis_title='V1')
-    # change scale of axis to log
-    fig.update_xaxes(type="log")
-    fig.update_yaxes(type="log")
-    # Set title
-    fig.update_layout(title='Clone fractions at baseline and V1')
-    # Change background color to white
-    fig.update_layout(plot_bgcolor='white', font=dict(family=FONT, size=12))
-    # change width and height of plot 
-    fig.update_layout(width=1000, height=1000)
-    #pio.write_image(fig, plotsdir+"clonefractionscatter.png", engine='kaleido')
-    fig.write_image(plotsdir+"clonefractionscatter.png", scale = 4)
-    
-    
-    
-def scatter_clone_fractions(clone_fractions_pivoted, colors, opacities, plotsdir):
-    
-    num_samples = len(clone_fractions_pivoted.index.get_level_values(0).unique())
-    fig, axes = plt.subplots(num_samples, 1, figsize=(8, 6 * num_samples))
+    fig.show()
+    fig.write_image(plotsdir+"barplot.png", scale = 4)
 
-    for i, sample in enumerate(clone_fractions_pivoted.index.get_level_values(0).unique()):
-        try:
-            sliced_pivoted_clones = clone_fractions_pivoted.loc[(sample, ['baseline', 'V1']), :]
-            # Add scatter plot to each subplot
-            sns.scatterplot(data=sliced_pivoted_clones,
-                            x=sliced_pivoted_clones.loc[sample, 'baseline'],
-                            y=sliced_pivoted_clones.loc[sample, 'V1'],
-                            alpha = opacities,
-                            color=colors,
-                            ax=axes[i])
-            axes[i].set_title(sample)
-            axes[i].set_xlabel('baseline')
-            axes[i].set_ylabel('V1')
-            axes[i].set_xscale('log')
-            axes[i].set_yscale('log')
-            
-            
-            # add a diagonal line
-            axes[i].plot([min(sliced_pivoted_clones.loc[sample, 'baseline']), max(sliced_pivoted_clones.loc[sample, 'baseline'])],
-                            [min(sliced_pivoted_clones.loc[sample, 'V1']), max(sliced_pivoted_clones.loc[sample, 'V1'])], color='black')
-            
-            # change font of sns plot
-            for item in ([axes[i].title, axes[i].xaxis.label, axes[i].yaxis.label] +
-                    axes[i].get_xticklabels() + axes[i].get_yticklabels()):
-                item.set_fontsize(12)
-                item.set_fontname(FONTSNS)
-            
-        except KeyError:
-            pass
-            
-            
-    plt.tight_layout()
-    plt.savefig(plotsdir + "clonefractionscatter.png", dpi=300)
-    plt.close()
     
     
-def alpha_diversity_tcr(abundances, pairs, res_dir, type_test):
+    
+    
+    
+def alpha_diversity_tcr(abundances, pairs, plotsdir, type_test):
     
     patients, condition = [el[0] for el in list(abundances.index)], [el[1] for el in list(abundances.index)]
     
@@ -233,8 +264,6 @@ def alpha_diversity_tcr(abundances, pairs, res_dir, type_test):
     # annotate the plot with the p-value
     axes.text(.5, .9, 'MW-pvalue={:.3f}'.format(res[0]), ha='center', va='center')
 
-
-
     # change font of sns plot
     for item in ([axes.title, axes.xaxis.label, axes.yaxis.label] +
              axes.get_xticklabels() + axes.get_yticklabels()):
@@ -245,285 +274,255 @@ def alpha_diversity_tcr(abundances, pairs, res_dir, type_test):
     # set limits of y axis
     axes.set_ylim(0,1)
     plt.title(type_test + ' Shannon entropies')
-    fig.savefig(res_dir + 'alpha_diversity' + type_test + '.png', dpi=600, bbox_inches='tight')
+    fig.savefig(plotsdir + 'alpha_diversity' + type_test + '.png', dpi=600, bbox_inches='tight')
     plt.close()
-    
-    
-def plot_predictions(data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
-    # Define colors for conditions
-    colors = {'Healthy': 'blue', 'Lymphomas': 'red'}
-    fig = go.Figure()
-    for condition in data[hue_col].unique():
-        
-        pivoted = data.query('CONDITION == @condition').pivot_table(index='junction_aa', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
-        # sum all column values into a new column and keep only that
-        pivoted['cloneFractionCovid'] = pivoted.sum(axis=1)
-        pivoted.reset_index(inplace=True)
-        pivoted = pivoted[['cloneFractionCovid', 'sample_id']]
-        # map each sample_id to the metadata
-        pivoted = pd.merge(pivoted, metadata, on='sample_id', how='left')
-        fig.add_trace(go.Box(y=pivoted['cloneFractionCovid'], x=pivoted[xaxis_col],
-                            name=condition,
-                            hovertext = pivoted['sample_id'],
-                            boxpoints='all',
-                            marker=dict(color=colors[condition]),
-                            jitter=0.3, ))
-
-        fig.update_layout(boxmode='group')
-    
-    pivoted_total =  data.pivot_table(index='sample_id', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
-    pivoted_total['cloneFractionCovid'] = pivoted_total.sum(axis=1) 
-         
-    fig.update_layout(font=dict(
-            size=14,
-            family=FONT,
-        ),
-        legend_title= 'Condition',
-        xaxis_title='Timepoint',
-        yaxis_title='Covid Specific clonal fraction',
-        template='plotly_white',
-        width=600, height=600
-    )
-    fig.update_yaxes(range=[0, max(pivoted_total['cloneFractionCovid'])+0.001])
-    # plot interactive plot html with plotly
-    fig.write_html(plotsdir+"clonal_preds.html")
-    fig.write_image(plotsdir+"clonal_preds.png", scale = 4)
-    
-    
-    to_plot = data.groupby(['sample_id', 'CONDITION', 'TIMEPOINTS'], as_index=False).apply(lambda x: x['cloneFraction'].sum())
-    to_plot = pd.merge(to_plot, metadata, on=['sample_id', 'CONDITION', 'TIMEPOINTS'], how='left')
-    to_plot.rename(columns={None: 'cloneFraction'}, inplace=True)
-    pandas2ri.activate()
-    ro.r('''
-        source('src/utils/plotting.R')
-    ''')
-    plot_clonal_depth = ro.globalenv['plot_clonal_depth']
-    plot_clonal_depth(to_plot[['cloneFraction', 'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
-    
-     
 
 
-### Alternative way to plot the data
-def plot_predictions_epitopes(data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
-    
-    # group by epitope and sample_id and sum the cloneFraction
-    #fig = go.Figure()
-    for epitope in data[hue_col].unique():
-        fig = go.Figure()
-        pivoted = data.query('epitope == @epitope').pivot_table(index='clonotype', columns='sample_id', fill_value=0, values='cloneFraction', aggfunc='sum').T
-        # sum all column values into a new column
-        pivoted['cloneFractionCovid'] = pivoted.sum(axis=1)
-        pivoted.reset_index(inplace=True)
-        fig.add_trace(go.Box(y=pivoted['cloneFractionCovid'], x=pivoted[xaxis_col],
-                            name=epitope,
-                            hovertext = pivoted['sample_id'],
-                            boxpoints='all',
-                            jitter=0.3, ))
 
-        fig.update_layout(boxmode='group')
-        
-        fig.update_layout(font=dict(
-                size=14,
-                family=FONT,
-            ),
-            legend_title= 'Epitope',
-            xaxis_title='Sample',
-            yaxis_title='Covid Specific clonal fraction',
-            template='plotly_white',
+
+
+def plot_gene_entropy_comparison(stat, highlight_samples, ylimits, plotname, title, plotsdir):
+    
+    
+    timepoint_colors = {
+    "baseline": '#004D40',
+    "V1": '#1E88E5',
+    "V3": '#FFC107'
+    }
+
+
+    fig = make_subplots(rows=1, cols=2, shared_yaxes=True, subplot_titles=("Healthy", "Lymphomas"))
+
+    healthy_data = stat.query('Condition == "Healthy"')
+    for timepoint in healthy_data["Timepoint"].unique():
+        filtered_data = healthy_data[healthy_data["Timepoint"] == timepoint]
+        fig.add_trace(
+            go.Box(y=filtered_data["Shannon_index"],
+                name=timepoint, text=filtered_data["sample_id"], boxpoints = 'all',
+                marker=dict(color=timepoint_colors[timepoint], line=dict(width=0.5)),
+                showlegend=True),
+            row=1, col=1
         )
-        fig.update_yaxes(range=[0, max(pivoted['cloneFractionCovid'])])
-        
-        fig.write_image(plotsdir+'epitope_sum_spec/'+str(epitope)+"_tcrexpreds_epitope.png", scale = 4)
         
         
-        
-        pivoted_toplot = pd.merge(pivoted, metadata[['sample_id', 'CONDITION', 'TIMEPOINTS', 'SAMPLE']], on='sample_id', how='left')
-        conditions = pivoted_toplot['CONDITION'].unique()
-        timepoints = pivoted_toplot['TIMEPOINTS'].unique()
+    # Filter data to get the highlighted samples
+    highlight_data = healthy_data[healthy_data['sample_id'].isin(highlight_samples)]
 
-        # Create the subplot layout
-        fig = make_subplots(rows=len(conditions), cols=len(timepoints),
-                            subplot_titles=[f'{condition} - {timepoint}' for condition in conditions for timepoint in timepoints],
-                            horizontal_spacing=0.05, vertical_spacing=0.1)
-
-        # Add traces to each subplot
-        for i, condition in enumerate(conditions):
-            for j, timepoint in enumerate(timepoints):
-                filtered_data = pivoted_toplot[(pivoted_toplot['CONDITION'] == condition) & (pivoted_toplot['TIMEPOINTS'] == timepoint)]
-                fig.add_trace(go.Box(y=filtered_data['cloneFractionCovid'], x=filtered_data['SAMPLE'],
-                                    name=f'{condition} - {timepoint}',
-                                    hovertext=filtered_data['sample_id'],
-                                    boxpoints='all',
-                                    jitter=0.3),
-                            row=i + 1, col=j + 1)
-
-        # Update the layout and axis settings
-        fig.update_layout(
-            boxmode='group',
-            font=dict(
-                size=14,
-                family=FONT,  # Replace with your FONT variable if defined
-            ),
-            legend_title='',
-            xaxis_title='Sample',
-            yaxis_title='Covid Specific clonal fraction',
-            template='plotly_white',
-            height=1200,  # Adjust height as needed
-            width=2200,   # Adjust width as needed
-            showlegend=False
+    # Add highlighted samples as a scatter plot trace
+    fig.add_trace(
+        go.Scatter(
+            x=highlight_data['Timepoint'],
+            y=highlight_data['Shannon_index'],
+            mode='markers',
+            marker=dict(color='red', size=10, symbol='star'),
+            name='Already positive individuals',
+            text=highlight_data['sample_id'],  # Hover text for highlighted samples
+            showlegend=True),
+        row=1, col=1
+    )
+        
+    lymphoma_data = stat.query('Condition == "Lymphomas"')
+    for timepoint in lymphoma_data["Timepoint"].unique():
+        filtered_data = lymphoma_data[lymphoma_data["Timepoint"] == timepoint]
+        fig.add_trace(
+            go.Box(y=filtered_data["Shannon_index"],
+                name=timepoint, text=filtered_data["sample_id"], boxpoints = 'all',
+                marker=dict(color=timepoint_colors[timepoint], line=dict(width=0.5)),
+                showlegend=False),
+            row=1, col=2
         )
 
-        # Set y-axis range for all subplots
-        for i in range(1, len(conditions) * len(timepoints) + 1):
-            fig.update_yaxes(range=[0, max(pivoted_toplot['cloneFractionCovid']) + 0.01], row=(i - 1) // len(timepoints) + 1, col=(i - 1) % len(timepoints) + 1,
-                             title_text='Covid Specific clonal fraction', tickangle=45)
-            fig.update_xaxes(tickangle=45, title_text='Sample',
-                         row=(i - 1) // len(timepoints) + 1, col=(i - 1) % len(timepoints) + 1)
-        # Save the figure
-        fig.write_image(plotsdir+'epitope_sum_spec_subplots/'+str(epitope)+"_tcrexpreds_epitope.png", scale = 4)
-        
-        
-        
-        
-            
-        # drop the column 'cloneFractionCovid' and the column 'clonotype', reset the index, set sample_id as index
-        pivoted = pivoted.drop(columns=['cloneFractionCovid']).reset_index(drop = True).set_index('sample_id')
-    
-        #figure = px.box(pivoted, x=pivoted.index, y=pivoted.columns, template='plotly_white')
-        #figure.write_image(plotsdir+'epitope_spec/'+str(epitope)+"_tcrexpreds_epitope.png", sizemax = 2, scale = 4)
-        
-        
-        # transform pivoted into long format, set the values in a column named 'cloneFraction' and keep the index and the column names
-        pivoted = pivoted.stack().reset_index()
-        pivoted.columns = ['sample_id', 'clonotype', 'cloneFraction']
-        fig, axes = plt.subplots(1, 1, figsize=(20, 20))
-        sns.boxplot(data=pivoted,
-                    x = pivoted['sample_id'],
-                    y = pivoted['cloneFraction'],
-                ax=axes)
-        axes.set_title(epitope)
-        axes.set_xlabel('Sample')
-        axes.set_ylabel('Clonal fraction')
-        axes.set_yscale('log')
-        
-        # change font of sns plot
-        for item in ([axes.title, axes.xaxis.label, axes.yaxis.label] +
-            axes.get_xticklabels() + axes.get_yticklabels()):
-            item.set_fontsize(12)
-            item.set_fontname(FONTSNS)
 
-        
-            
-        plt.tight_layout()
-        plt.savefig(plotsdir+'epitope_spec/'+str(epitope)+"_tcrexpreds_epitope.png", dpi=100)
-        plt.close()
-            
-    
-    
-    
-    
-    
-def plot_clonalfraction_antibody(scatteratio_data:pd.DataFrame, plotsdir:str) -> None:
-    sns.scatterplot(data=scatteratio_data, x='AB_TITER', y='cloneFraction', hue='CONDITION', style='TIMEPOINTS', alpha = .5)
-    #plt.yscale('log')
-    plt.xlabel('AB titers')
-    plt.ylabel('Covid Specific clonal fraction')
-    plt.tight_layout()
-    plt.savefig(plotsdir + 'clonalfraction_antibody.png', dpi=600, bbox_inches='tight')
-    plt.close()
-    
-    
-def plot_scatteratio_tcr_specific(scatteratio_data:pd.DataFrame, plotsdir:str) -> None:
-    sns.scatterplot(data=scatteratio_data, x='totalBeta', y='both', hue='TIMEPOINTS', style='CONDITION', alpha = .5)
-    plt.xlabel('Total number of Unique beta chains')
-    plt.ylabel('Covid-predicted beta chains')
-    plt.tight_layout()
-    plt.savefig(plotsdir + 'scatteratio.png', dpi=600, bbox_inches='tight')
-    plt.close()
-    
-    
-    
-def plot_scatteratio_breadth(scatteratio_data:pd.DataFrame, metadata:pd.DataFrame, xaxis_col:str, hue_col:str, plotsdir:str) -> None:
+    # Filter data to get the highlighted samples
+    highlight_data = lymphoma_data[lymphoma_data['sample_id'].isin(highlight_samples)]
 
-
-    colors = {'Healthy': 'blue', 'Lymphomas': 'red'}
-    
-    fig = go.Figure()
-    
-    for condition in scatteratio_data[hue_col].unique():
-        
-        aux = scatteratio_data.query('CONDITION == @condition')
-        fig.add_trace(go.Box(y=aux['fraction_sequences'], x=aux[xaxis_col],
-                            name=condition,
-                            hovertext = aux['sample_id'],
-                            boxpoints='all',
-                            marker=dict(color=colors[condition]),
-                            jitter=0.3, ))
-
-        fig.update_layout(boxmode='group')
-    
-         
-    fig.update_layout(font=dict(
-            size=14,
-            family=FONT,
-        ),
-        legend_title= 'Condition',
-        xaxis_title='Timepoint',
-        yaxis_title='Covid Specific fraction of sequences (breadth)',
-        template='plotly_white',
+    # Add highlighted samples as a scatter plot trace
+    fig.add_trace(
+        go.Scatter(
+            x=highlight_data['Timepoint'],
+            y=highlight_data['Shannon_index'],
+            mode='markers',
+            marker=dict(color='red', size=10, symbol='star'),
+            name='Already positive individuals',
+            text=highlight_data['sample_id'],  # Hover text for highlighted samples
+            showlegend=False),
+        row=1, col=2
     )
-    fig.update_yaxes(range=[min(scatteratio_data['fraction_sequences'])-0.0005, max(scatteratio_data['fraction_sequences'])+0.0005])
-    fig.write_image(plotsdir+"scatteratio_breadth.png", scale = 4)
-    fig.write_html(plotsdir+"scatteratio_breadth.html")
-    
-    
-    
-    to_plot = pd.merge(scatteratio_data, metadata, on=['sample_id', 'CONDITION', 'TIMEPOINTS', 'SAMPLE'], how='left')
-    pandas2ri.activate()
-    ro.r('''
-        source('src/utils/plotting.R')
-    ''')
-    plot_scatteratio_breadth = ro.globalenv['plot_scatteratio_breadth']
-    plot_scatteratio_breadth(to_plot[['fraction_sequences',  'CONDITION', 'TIMEPOINTS', 'SAMPLE']], plotsdir)
-    
 
-    
-    
+    fig.update_layout(
+        font=dict(family=FONT, size=12),
+        #paper_bgcolor='rgb(243, 243, 243)',
+        #plot_bgcolor='rgb(243, 243, 243)',
+        barmode='group',
+        bargap=0.1,
+        title_text=title,
+        xaxis_title="Condition",
+        yaxis_title="Normalised Shannon index",
+        legend_title="Timepoints",
+        height = 600,
+        width = 1000,
+        template="plotly_white"
+    )
 
-    
 
-def plot_scatter_presence(covid_spec_data, plotsdir):
+    fig.update_xaxes(
+        mirror=True,
+        ticks='outside',
+        showline=True,
+        linecolor='black',
+        showgrid=False
+    )
+    fig.update_yaxes(
+        mirror=True,
+        ticks='outside',
+        showline=True,
+        linecolor='black',
+        showgrid=True,
+        range= ylimits
+    )
+    fig.write_image(plotsdir + plotname + '.png', scale = 4)
+    fig.show()
     
-    fig = go.Figure()
-    conditions = list(set([cond.split('_')[0] for cond in covid_spec_data.columns.tolist() if cond.split('_')[0] != 'clonotype' and cond.split('_')[0] != 'tcrexpred']))
-    timepoints = list(set([tpoint.split('_')[-1] for tpoint in covid_spec_data.columns.tolist() if tpoint.split('_')[-1] != 'clonotype' and tpoint.split('_')[-1] != 'tcrexpred']))
     
-    idx = 0
-    for timep in timepoints:
-        # select columns that start with cond and end with timep
-        covid_spec_data_filtered = covid_spec_data[[col for col in covid_spec_data.columns if col.endswith(timep) or col == 'clonotype' or col == 'tcrexpred']]
-        covid_spec_data_filtered['opacity'] = covid_spec_data_filtered['tcrexpred'].map({'NotSpecific': 0.01, 'CovidSpecific': 1})
-        
-        ############# TODO plot one single dot and use the size instead
-        #print(covid_spec_data_filtered.groupby([[col for col in covid_spec_data_filtered.columns if col.endswith(timep)]]))
-        try:
-            fig.add_trace(go.Scatter(x=covid_spec_data_filtered['Healthy_'+timep],
-                                    y=covid_spec_data_filtered['Lymphomas_'+timep],
-                                    mode='markers',
-                                    hovertext=covid_spec_data_filtered['clonotype'],
-                                    name=timep,
-                                    marker=dict(color=covid_spec_data_filtered['tcrexpred'].map({'NotSpecific': 'lightgray', 'CovidSpecific': 'red'}),
-                                                                                        symbol=(idx))))
-            # change opacity of the points
-            fig.update_traces(marker=dict(opacity=0.1))
-            idx+=1
-        except KeyError: pass
+def testing_and_plot_singlegene_usage(gene_usage, variables_to_test, plotsdir):
+    
+    for variable in variables_to_test:
+        print(f'Tested varialbe: {variable}')
+        for timepoint in ['baseline', 'V1', 'V3']:
+            pvalues = []
+            v_genes = []
+            filtered_data = gene_usage.query('TIMEPOINTS == @timepoint')
+            for unique_v_call in filtered_data['v_call'].unique():
+                #print(f'V gene: {unique_v_call}')
+                res = mannwhitneyu(filtered_data.query('CONDITION == "Lymphomas" and v_call == @unique_v_call')[variable],
+                                    filtered_data.query('CONDITION == "Healthy" and v_call == @unique_v_call')[variable])[1]
+                pvalues.append(res)
+                v_genes.append(unique_v_call)
+            corrected_pvalues = multipletests(pvalues, method ='fdr_bh')[1]
 
-    fig.update_layout(font=dict(
-                            size=14,
-                            family="JetBrains Mono",
-                        ),
-                        title="Scatter Plot of Clonotype Presence",
-                        xaxis_title=f"Presence in Healthy",
-                        yaxis_title=f"Presence in Lymphomas")
-    pio.write_image(fig, plotsdir+'scatter_presence.png', engine='kaleido')
+            
+            fig = go.Figure()
+            
+            for adj_pvalue, v_gene in zip(corrected_pvalues, v_genes):
+                if adj_pvalue <= 0.05:
+                    adj_pvalue
+                    print(f'{v_gene} at {timepoint} has a significant adjusted p-value of {adj_pvalue}')
+                    fig.add_trace(go.Box(
+                        y=filtered_data.query('CONDITION == "Lymphomas" and v_call == @v_gene')[variable],
+                        name=v_gene,
+                        line_color='red',
+                        showlegend=False,
+                        width=0.3 
+                    ))
+
+                    # Create boxplot for Healthy condition
+                    fig.add_trace(go.Box(
+                        y=filtered_data.query('CONDITION == "Healthy" and v_call == @v_gene')[variable],
+                        name=v_gene,
+                        line_color='blue',
+                        showlegend=False,
+                        width=0.3 
+                    ))
+                    
+                    # Add p-value annotation
+                    offset = 0
+                    
+                    if variable == 'Normalised_Shannon_entropy':
+                        offset = max(filtered_data.query('v_call == @v_gene')[variable]) + 0.1
+                    elif variable == 'unique_counts':
+                        offset = max(filtered_data.query('v_call == @v_gene')[variable]) + 4
+                    elif variable == 'normalizedUniqueCounts':
+                        offset = max(filtered_data.query('v_call == @v_gene')[variable]) + 0.000005
+                        
+                    fig.add_annotation(
+                        x=v_gene,  # Place the annotation near the 'Healthy' group for this v_gene
+                        # y position in the scale of the y-axis
+                        y=offset,  # Position the annotation above the max y-value for the v_gene
+                        # asterisk noation for significance
+                        #text=f'adj pvalue = {adj_pvalue:.4f}',  # Format the p-value with three decimal places
+                        text=f'{tools.convert_pvalue_to_asterisks(adj_pvalue)}',
+                        showarrow=False,
+                        font=dict(color="black", size=14),
+                        xanchor='center'
+                    )
+                        
+                        
+                else:
+                    pass
+                    #print(f'{v_gene} at {timepoint} has a non-significant adjusted p-value of {adj_pvalue}')
+                    
+            # if Figure empty, skip saving
+            if len(fig.data) == 0:
+                continue
+            
+            
+            else:
+                
+                if variable == 'normalizedUniqueCounts':
+                    
+                    fig.update_yaxes(title_text="Normalised unique CDR3 counts", range=[0, 0.000025])
+                    
+                elif variable == 'unique_counts':
+                    
+                    fig.update_yaxes(title_text="Unique CDR3 counts",)
+                
+                elif variable == 'Normalised_Shannon_entropy':
+                    
+                    fig.update_yaxes(title_text="Normalised Shannon entropy")
+                    
+                # Update traces for all boxplots
+                fig.update_traces(
+                    jitter=0.05,  # add some jitter on points for better visibility
+                    marker=dict(opacity=0.6),  # make markers slightly transparent
+                    boxpoints='all',
+                )
+                
+                # Update layout for the plot
+                fig.update_layout(
+                    title_text=f"Timepoint {timepoint} (only sig results reported ; MW BH-corrected pvalue <= 0.05)",
+                    #yaxis=dict(range=[-1, 12]),  # Set the desired y-axis limits
+                    xaxis_title="V gene",  # Custom x-axis title
+                    #yaxis_title=f"{variable}",  # Custom y-axis title
+                    height=500,
+                    width=900,
+                    font=dict(
+                        family=FONT,
+                    ),
+                    boxmode='group',
+                    template="plotly_white",
+                    bargap=0.2
+                )
+            
+                # Adding custom legend
+                fig.add_trace(go.Scatter(
+                    x=[None], y=[None],
+                    mode='markers',
+                    marker=dict(color='blue'),
+                    showlegend=True,
+                    name='Healthy'
+                ))
+                fig.add_trace(go.Scatter(
+                    x=[None], y=[None],
+                    mode='markers',
+                    marker=dict(color='red'),
+                    showlegend=True,
+                    name='Lymphomas'
+                ))
+                
+                fig.update_xaxes(
+                    mirror=True,
+                    ticks='outside',
+                    showline=True,
+                    linecolor='black',
+                    showgrid=False
+                )
+                fig.update_yaxes(
+                    mirror=True,
+                    ticks='outside',
+                    showline=True,
+                    linecolor='black',
+                    showgrid=True
+                )
+
+                #fig.show()
+                fig.write_image(f'{plotsdir}{variable}_{timepoint}_covid.png', width = 1200, scale = 4)
