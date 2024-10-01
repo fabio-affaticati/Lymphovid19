@@ -69,7 +69,7 @@ def plot_nuniques_clonecounts(data, plotsdir):
     
 
 
-def test_global_repertoire_differnces(data, plotsdir):
+def test_global_repertoire_differences(data, plotsdir):
     
     repertoire_comparison = data[['sample_id', 'SAMPLE', 'countUniqueCDR3', 'cloneCount', 'normalizedUniqueCDR3', 'CONDITION', 'TIMEPOINTS', 'TCR_Chain']]
     repertoire_comparison = repertoire_comparison.sort_values(by=['SAMPLE'])
@@ -398,8 +398,9 @@ def testing_and_plot_singlegene_usage(gene_usage, variables_to_test, plotsdir):
                                     filtered_data.query('CONDITION == "Healthy" and v_call == @unique_v_call')[variable])[1]
                 pvalues.append(res)
                 v_genes.append(unique_v_call)
+            
+            
             corrected_pvalues = multipletests(pvalues, method ='fdr_bh')[1]
-
             
             fig = go.Figure()
             
@@ -449,7 +450,7 @@ def testing_and_plot_singlegene_usage(gene_usage, variables_to_test, plotsdir):
                         
                 else:
                     pass
-                    #print(f'{v_gene} at {timepoint} has a non-significant adjusted p-value of {adj_pvalue}')
+                    print(f'{v_gene} at {timepoint} has a non-significant adjusted p-value of {adj_pvalue}')
                     
             # if Figure empty, skip saving
             if len(fig.data) == 0:

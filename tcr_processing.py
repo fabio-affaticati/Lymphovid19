@@ -85,8 +85,17 @@ if __name__ == "__main__":
     raw_data = tools.keep_functional_genes('IMGT_JGene_Name', raw_data)
     
     
-    raw_data.rename(columns={'IMGT_VGene_Name': 'v_call', 'IMGT_JGene_Name': 'j_call', 'SAMPLE_ID':'sample_id', 'aaSeqCDR3' : 'junction_aa'}, inplace=True)
-    raw_data = raw_data[['cloneCount', 'cloneFraction','junction_aa', 'sample_id', 'SAMPLE', 'TIMEPOINTS', 'CONDITION', 'j_call', 'v_call', 'TCR_Chain']]
+    raw_data.rename(columns={'IMGT_VGene_Name': 'v_call', 'IMGT_JGene_Name': 'j_call',
+                             'aaSeqCDR3' : 'junction_aa', 'targetSequences' : 'junction',
+                             'SAMPLE_ID':'sample_id'}, inplace=True)
+    
+    # prep data for immune response detection tool
+    raw_data[['cloneCount', 'cloneFraction','junction_aa', 'junction', 'sample_id', 'SAMPLE',
+              'TIMEPOINTS', 'CONDITION', 'j_call', 'v_call', 'TCR_Chain']].to_csv(PROCESSEDDIR+'immune_responses_data.csv', sep=',')
+    
+    # main data dump
+    raw_data = raw_data[['cloneCount', 'cloneFraction', 'junction_aa', 'sample_id', 'SAMPLE',
+                         'TIMEPOINTS', 'CONDITION', 'j_call', 'v_call', 'TCR_Chain']]
     raw_data.to_csv(PROCESSEDDIR+'preprocessed_data.csv', sep=',')
     
     # prep data for DETECT

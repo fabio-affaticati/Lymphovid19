@@ -79,7 +79,9 @@ def read_raw_data(mixcrdir, metadata):
             raw_tcr['IMGT_JGene_Name'] = raw_tcr['allJHitsWithScore'].str.split('\*00').str[0]
             raw_tcr['TCR_Chain'] = raw_tcr['allVHitsWithScore'].str[:3]
             
-            raw_tcr = raw_tcr.groupby(['aaSeqCDR3', 'SAMPLE_ID', 'SAMPLE', 'TIMEPOINTS', 'CONDITION', 'IMGT_JGene_Name', 'IMGT_VGene_Name', 'TCR_Chain'], as_index=False).agg({'cloneFraction': 'sum', 'cloneCount': 'sum'})
+            raw_tcr = raw_tcr.groupby(['aaSeqCDR3', 'SAMPLE_ID', 'SAMPLE',
+                                       'TIMEPOINTS', 'CONDITION', 'IMGT_JGene_Name', 'IMGT_VGene_Name', 
+                                       'TCR_Chain', 'targetSequences'], as_index=False).agg({'cloneFraction': 'sum', 'cloneCount': 'sum'})
             raw_tcr.reset_index(drop=True,inplace=True)
             
             
