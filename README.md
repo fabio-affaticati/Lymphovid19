@@ -44,6 +44,6 @@
 
 
 ### 2.3 Additional tools used:
--ImmuneWatch DETECT: https://www.immunewatch.com/solutions/imw-detect
--HLA3: https://github.com/kmayerb/hla3
--HLAGuessr: https://github.com/statbiophys/HLAGuessr
+- ImmuneWatch DETECT: https://www.immunewatch.com/solutions/imw-detect
+- HLA3: https://github.com/kmayerb/hla3
+- HLAGuessr: https://github.com/statbiophys/HLAGuessr
