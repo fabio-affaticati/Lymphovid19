@@ -41,3 +41,9 @@
 - tidyverse==2.0.0
 - scales==1.3.0
 - lme4==1.1-35.5
+
+
+### 2.3 Additional tools used:
+-ImmuneWatch DETECT: https://www.immunewatch.com/solutions/imw-detect
+-HLA3: https://github.com/kmayerb/hla3
+-HLAGuessr: https://github.com/statbiophys/HLAGuessr
