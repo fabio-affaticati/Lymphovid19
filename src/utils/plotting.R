@@ -323,29 +323,53 @@ linear_mixed_model <- function(df, model_path){
   
   require(lme4)
   require(lmerTest)
+  library(emmeans)
   require(ggplot2)
 
 
   df$SAMPLE <- as.factor(df$SAMPLE)
   df$TIMEPOINTS <- as.factor(df$TIMEPOINTS)
   df$CONDITION <- as.factor(df$CONDITION)
+  #df$TIMEPOINTS <- relevel(df$TIMEPOINTS, ref = "V3")
+  #df$CONDITION <- relevel(df$CONDITION, ref = "Lymphomas")
 
   # if fraction_sequences is in the columns of the dataframe
   if("fraction_sequences" %in% colnames(df)){
     model <- lmer(fraction_sequences ~ CONDITION * TIMEPOINTS + (1 | SAMPLE), data = df)
     saveRDS(model, file = paste0(model_path, "lmm_model_breadth.rds"))
+    emms <- emmeans(model, specs = ~ TIMEPOINTS | CONDITION, type = "response", adjust = "tukey")
+    print(contrast(emms, method = "pairwise"))
+    ggsave(paste0(model_path, "lmm_model_breadth_emms.png"), plot(emms, comparisons = TRUE), width = 10)
+    ggsave(paste0(model_path, "lmm_model_breadth_pwpp.png"), pwpp(emms, method = "pairwise",
+            sort = F, values = T, type = "response") + 
+            geom_vline(xintercept = 0.05, linetype = "dashed", color = "red", size = 0.5), width = 10)
   }
+
   # if cloneFraction is in the columns of the dataframe
   else if("cloneFraction" %in% colnames(df)){
     model <- lmer(cloneFraction ~ CONDITION * TIMEPOINTS + (1 | SAMPLE), data = df)
     saveRDS(model, file = paste0(model_path, "lmm_model_depth.rds"))
+    emms <- emmeans(model, specs = ~ TIMEPOINTS | CONDITION, type = "response", adjust = "tukey")
+    
+    print(contrast(emms, method = "pairwise"))
+
+    ggsave(paste0(model_path, "lmm_model_depth_emms.png"), plot(emms, comparisons = TRUE), width = 10)
+    ggsave(paste0(model_path, "lmm_model_depth_pwpp.png"), pwpp(emms, method = "pairwise",
+            sort = F, values = T, type = "response") + 
+            geom_vline(xintercept = 0.05, linetype = "dashed", color = "red", size = 0.5), width = 10)
   }
   else{
     print("No suitable column found in the dataframe")
   }
+  
+  #p <- emmip(model,~ TIMEPOINTS | CONDITION, CIs = TRUE, type = "response")
+  #ggsave(paste0(model_path, "test.png"), p, width = 10)
 
-
+  
 }
+
+
+
 
 export_lmm_results <- function(model_path){
 
@@ -431,11 +455,7 @@ correlation_heatmap <- function(data, plotsDir){
 
   clusters_n = 8
 
-  # Generate correlation matrix using only numeric columns
-  # Previous use, now to be removed
-  mat <- cor(t(data[, sapply(data, is.numeric)]))
-
-  # Get numeric data for correlation (transpose to   correlate rows)
+  # Get numeric data for correlation
   numeric_data <- data[, sapply(data, is.numeric)]
 
   # Create an annotation dataframe using the CONDITION and TIMEPOINTS columns
@@ -446,7 +466,7 @@ correlation_heatmap <- function(data, plotsDir){
   corr_results <- rcorr(as.matrix(t(numeric_data)), type = "pearson")
   mat <- corr_results$r       # Correlation matrix
   pvals <- corr_results$P     # P-value matrix
-
+  
   unique_samples <- unique(data$SAMPLE)
   sample_colors <- hcl.colors(length(unique_samples), palette = "Dark3")
   names(sample_colors) <- unique_samples  # Name colors by sample
@@ -502,7 +522,7 @@ correlation_heatmap <- function(data, plotsDir){
     fontsize_number = 10,  # Font size for numbers in cells
     cutree_rows = clusters_n,  # Number of clusters for rows
     cutree_cols = clusters_n,  # Number of clusters for columns
-    cluster_rows = TRUE,  # Cluster rows
+    cluster_rows = F,  # Cluster rows
     cluster_cols = TRUE,  # Cluster columns
     filename = paste0(plotsDir, glue("vgene_corrplot_euclidean_distance.png")),
     width = 20, height = 20)
@@ -583,17 +603,18 @@ correlation_heatmap_pertime <- function(data, time, plotsDir){
     annotation_row = annotation_data,   # Add annotations for rows
     annotation_col = annotation_data,   # Add annotations for columns
     annotation_colors = annotation_colors,  # Add colors for the annotations
-    main = "",  # Title
+    main = glue("Correlation plot {time}"),  # Title
     display_numbers = signif_matrix, #TRUE,  # Show correlation values inside the cells
     number_format = "%.2f",  # Format numbers to 2 decimal places
-    fontsize = 10,  # Font size for general text
+    fontsize = 15,  # Font size for general text
     fontsize_number = 10,  # Font size for numbers in cells
     cutree_rows = clusters_n,  # Number of clusters for rows
     cutree_cols = clusters_n,  # Number of clusters for columns
-    cluster_rows = TRUE,  # Cluster rows
-    cluster_cols = TRUE,  # Cluster columns
+    cluster_rows = T,  # Cluster rows
+    cluster_cols = T,  # Cluster columns
     filename = paste0(plotsDir, glue("vgene_corrplot_euclidean_distance_{time}.png")),
-    width = 20, height = 20)
+    width = 30, height = 30)
+
 
 
   row_clusters <- cutree(pheatmap_result$tree_row, k = clusters_n)  # Change 'k' to the number of desired clusters
@@ -631,8 +652,8 @@ correlation_heatmap_pertime <- function(data, time, plotsDir){
   print(p_adjusted)
   return
 
-}
 
+}
 
 
 pca_biplot_vgenes <- function(data, metadata, plotsDir){
@@ -1253,12 +1274,13 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
 
 test_cluster_vgenes <- function(trbv_gene_usage, metadata_test, cluster, time, cluster_n, plotsDir){
   # Required libraries
-  require(dplyr)
-  require(ggplot2)
-  require(ggpubr)
-  require(tidyr)
+  library(dplyr)
+  library(ggplot2)
+  library(ggpubr)
+  library(tidyr)
+  library(reshape2)
 
-  # transform list to array
+  # Transform list to array
   cluster <- unlist(cluster)
 
   # Merge the TRBV gene usage data with metadata for cluster1 and not_cluster1
@@ -1274,34 +1296,103 @@ test_cluster_vgenes <- function(trbv_gene_usage, metadata_test, cluster, time, c
     filter(!SAMPLE %in% cluster) %>%
     select(-SAMPLE, -sample_id, -CONDITION, -TIMEPOINTS)
 
+  cluster_data$Group <- "Cluster"
+  not_cluster_data$Group <- "NotCluster"
 
-  plot_data <- data.frame(
-    VGene = rep(colnames(cluster_data), each = nrow(cluster_data) + nrow(not_cluster_data)),
-    Value = c(as.vector(as.matrix(cluster_data[colnames(cluster_data)])), as.vector(as.matrix(not_cluster_data[colnames(cluster_data)]))),
-    Group = factor(rep(c("Cluster", "NotCluster"), times = c(nrow(cluster_data), nrow(not_cluster_data))))
+  # Combine the two data frames
+  plot_data <- bind_rows(
+    mutate(cluster_data, Group = "Cluster"),
+    mutate(not_cluster_data, Group = "NotCluster")
   )
 
+  plot_data <- melt(plot_data, id.vars = "Group", variable.name = "VGene", value.name = "Value")
+
+
+  # Initialize a list to store p-values
+  p_values <- numeric(length(unique(plot_data$VGene)))
+
+  # Perform Wilcoxon test for each V gene
+  for (v_gene in unique(plot_data$VGene)) {
+    cluster_values <- plot_data$Value[plot_data$VGene == v_gene & plot_data$Group == "Cluster"]
+    not_cluster_values <- plot_data$Value[plot_data$VGene == v_gene & plot_data$Group == "NotCluster"]
+    
+    # Perform the Wilcoxon test
+    test_result <- wilcox.test(cluster_values, not_cluster_values, exact = FALSE)
+    p_values[which(unique(plot_data$VGene) == v_gene)] <- test_result$p.value
+  }
+
+  # Create a data frame for p-values
+  p_value_df <- data.frame(
+    VGene = unique(plot_data$VGene),
+    PValue = p_values
+  )
+  # Adjust p-values for multiple testing (optional)
+  p_value_df$PValue[is.nan(p_value_df$PValue)] <- 1
+  p_value_df$AdjustedPValue <- p.adjust(p_value_df$PValue, method = "fdr")
+
+  p_value_df$Significance <- cut(p_value_df$PValue,
+                               breaks = c(-Inf, 0.0001, 0.001, 0.01, 0.05, 1),
+                               labels = c("****", "***", "**", "*", ""))
+
   
+  # Plot with larger text and annotations
   p <- ggplot(plot_data, aes(x = VGene, y = Value, color = Group)) +
     geom_boxplot(position = position_dodge(width = 0.75), outlier.shape = NA) + 
-    geom_jitter(position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) + 
+    geom_jitter(position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
     theme_bw() +
-    labs(y = "V gene clonal fraction", x = "V Gene", title = "") +
-    theme(legend.position = "bottom",
-    text = element_text(size = 14),  # General text size
-    axis.title = element_text(size = 16),  # Axis title size
-    axis.text = element_text(size = 13),   # Axis label size
-    legend.text = element_text(size = 12)  # Legend text size
+    labs(y = "V gene clonal fraction", x = "V Gene") +
+    theme(
+      legend.position = "bottom",
+      text = element_text( size = 14),  # General text size
+      axis.title = element_text(size = 16),  # Axis title size
+      axis.text = element_text(size = 14),   # Axis label size
+      legend.text = element_text(size = 12),  # Legend text size
+      axis.text.x = element_text(angle = 90, hjust = 1)  # Rotate x-axis labels
     ) +
-    scale_y_continuous(
-    labels = scales::percent_format()  # Format y-axis labels as percentages
-    ) +
-    stat_compare_means(method = "wilcox.test", aes(group = Group),
-      label = "p.signif", hide.ns = T, size = 7) +
-    coord_cartesian(ylim = c(min(plot_data$Value), max(plot_data$Value)+0.00002)) +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    scale_color_manual(values = c("Cluster" = "black", "NotCluster" = "darkgrey"))
+    coord_cartesian(ylim = c(min(plot_data$Value), max(plot_data$Value) + 0.000035)) +
+    scale_color_manual(values = c("Cluster" = "black", "NotCluster" = "darkgray")) +
+    geom_text(data = p_value_df, aes(x = VGene, y = max(plot_data$Value) + 0.0000001, label = Significance),
+                   color = "black", size = 9, angle = 0, vjust = 0) +
+    scale_y_continuous(trans=scales::pseudo_log_trans(base = 10))
+
+
 
   ggsave(paste0(plotsDir, glue("Vgene_spec_cluster{cluster_n}.png")), plot = p, width = 20, height = 6, dpi = 300)
+
+}
+
+
+vgene_lmm <- function(df, plotsDir) {
+
+  require(glue)
+  require(ggplot2)
+  require(lme4)
+  require(lmerTest)
+
+  df$CONDITION <- as.factor(df$CONDITION)
+  df$SAMPLE <- as.factor(df$SAMPLE)
+  df$v_call <- as.factor(df$v_call)
+  df$concave <- as.factor(df$concave)
+
+  ###################################################################### Linear Mixed Model with the modules
+  model <- lmer(cloneFraction ~ (TIMEPOINTS * v_call * CONDITION) + (1 | SAMPLE), data = df)
+
+  llm_pvalues <- summary(model)$coefficients[, "Pr(>|t|)"]
+  llm_pvalues <- llm_pvalues[llm_pvalues < 0.05]
+
+
+  p <- plot_summs(model, ci_level = .95, model.names = c(glue("Model LLM")), coefs = names(llm_pvalues))
+
+  # annotate the plot with the p values taken from the models
+  i = 1
+  for (name in names(llm_pvalues)) {
+    value <- llm_pvalues[name]
+    plot_data <- ggplot_build(p)$data[[1]]
+    p <- p + annotate("text", x = plot_data$xmax[i], y = plot_data$y[i],
+                      label = pvalue_to_asterisk(summary(model)$coefficients[name,]['Pr(>|t|)']), size = 5)
+    i = i + 1
+  }
+  ggsave(paste0(plotsDir, glue("models_summs.png")), p, width = 10, height = 10)
+
 
 }
