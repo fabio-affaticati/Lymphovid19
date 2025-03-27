@@ -34,7 +34,7 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 clustcr_analysis.ipynb
-lymph_covid.ipynb
+#lymph_covid.ipynb
 
 # IPython
 profile_default/
