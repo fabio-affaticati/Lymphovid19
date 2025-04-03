@@ -22,9 +22,15 @@ FONTSNS =  'DejaVu Sans'
 
 timepoint_colors = {
     "baseline": '#004D40',
-    "V1": '#1E88E5',
-    "V3": '#FFC107'
+    "V1 (50 days)": '#1E88E5',
+    "V3 (6 months)": '#FFC107'
 }
+
+patient_colors = {
+            "Healthy controls" : "#1f77b4",
+            "Lymphoma patients" : "#d62728"
+}
+
 
 ### FIGURE 1
 
@@ -38,9 +44,9 @@ def plot_viral_ratio(data, plot_dir, filename="other_viral_barplot.png"):
         filename (str): Name of the file to save the plot.
     """
     
-    fig = make_subplots(rows=1, cols=2, shared_yaxes=True, subplot_titles=("Healthy", "Lymphomas"))
+    fig = make_subplots(rows=1, cols=2, shared_yaxes=True, subplot_titles=("Healthy controls", "Lymphoma patients"))
 
-    for i, condition in enumerate(["Healthy", "Lymphomas"], start=1):
+    for i, condition in enumerate(["Healthy controls", "Lymphoma patients"], start=1):
         condition_data = data.query('CONDITION == @condition')
         for timepoint, color in timepoint_colors.items():
             filtered_data = condition_data.query('TIMEPOINTS == @timepoint')
@@ -83,14 +89,15 @@ def plot_cdr3_length_distribution(kolmogorov_data, timepoints, plot_dir):
     
     for tp in timepoints:
         ks_stat, ks_pval = ks_2samp(
-            kolmogorov_data.query(f'CONDITION == "Healthy" and TIMEPOINTS == "{tp}" and TCR_Chain == "TRB"')['CDR3_length'],
-            kolmogorov_data.query(f'CONDITION == "Lymphomas" and TIMEPOINTS == "{tp}" and TCR_Chain == "TRB"')['CDR3_length']
+            kolmogorov_data.query(f'CONDITION == "Healthy controls" and TIMEPOINTS == "{tp}" and TCR_Chain == "TRB"')['CDR3_length'],
+            kolmogorov_data.query(f'CONDITION == "Lymphoma patients" and TIMEPOINTS == "{tp}" and TCR_Chain == "TRB"')['CDR3_length']
         )
         print(f'{tp} - KS test statistic: {ks_stat}, p-value: {ks_pval}')
 
         plot = sns.displot(
             data=kolmogorov_data.query(f'TIMEPOINTS == "{tp}"'), 
             x="CDR3_length", kind="hist", hue="CONDITION",
+            palette=patient_colors,
             bins=bins, discrete=True  # Ensures clear separation
         )
         plt.title(f"Covid specific beta chain length destribution at {tp}")
@@ -221,9 +228,11 @@ def test_global_repertoire_differences(data, plotsdir):
 
 def plot_repertoire_sizes(data, title, plotsdir):
         
-    fig = make_subplots(rows=2, cols=2, shared_yaxes=True, subplot_titles=("Healthy TRA", "Lymphomas TRA", "Healthy TRB", "Lymphomas TRB"))
+    fig = make_subplots(rows=2, cols=2, shared_yaxes=True,
+                        subplot_titles=("Healthy controls TRA", "Lymphoma patients TRA",
+                                        "Healthy controls TRB", "Lymphoma patients TRB"))
 
-    healthy_data = data.query('CONDITION == "Healthy" and TCR_Chain == "TRA"')
+    healthy_data = data.query('CONDITION == "Healthy controls" and TCR_Chain == "TRA"')
 
     for timepoint in healthy_data["TIMEPOINTS"].unique():
         filtered_data = healthy_data[healthy_data["TIMEPOINTS"] == timepoint]
@@ -235,7 +244,7 @@ def plot_repertoire_sizes(data, title, plotsdir):
             row=1, col=1
         )
         
-    lymphomas_data = data.query('CONDITION == "Lymphomas" and TCR_Chain == "TRA"')
+    lymphomas_data = data.query('CONDITION == "Lymphoma patients" and TCR_Chain == "TRA"')
     for timepoint in lymphomas_data["TIMEPOINTS"].unique():
         filtered_data = lymphomas_data[lymphomas_data["TIMEPOINTS"] == timepoint]
         fig.add_trace(
@@ -246,7 +255,7 @@ def plot_repertoire_sizes(data, title, plotsdir):
             row=1, col=2
         )
         
-    healthy_data = data.query('CONDITION == "Healthy" and TCR_Chain == "TRB"')
+    healthy_data = data.query('CONDITION == "Healthy controls" and TCR_Chain == "TRB"')
     for timepoint in healthy_data["TIMEPOINTS"].unique():
         filtered_data = healthy_data[healthy_data["TIMEPOINTS"] == timepoint]
         fig.add_trace(
@@ -257,7 +266,7 @@ def plot_repertoire_sizes(data, title, plotsdir):
             row=2, col=1
         )
         
-    lymphomas_data = data.query('CONDITION == "Lymphomas" and TCR_Chain == "TRB"')
+    lymphomas_data = data.query('CONDITION == "Lymphoma patients" and TCR_Chain == "TRB"')
     for timepoint in lymphomas_data["TIMEPOINTS"].unique():
         filtered_data = lymphomas_data[lymphomas_data["TIMEPOINTS"] == timepoint]
         fig.add_trace(

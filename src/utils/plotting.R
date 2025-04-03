@@ -22,9 +22,9 @@ plot_clonal_depth <- function(data, path){
     require(scales)
     
     # Define colors for conditions
-    colors <- c("Healthy" = "#1f77b4", "Lymphomas" = "#d62728")
+    colors <- c("Healthy controls" = "#1f77b4", "Lymphoma patients" = "#d62728")
 
-    p <-ggplot(data, aes(x=TIMEPOINTS,y=cloneFraction, fill=CONDITION)) +
+    p <-ggplot(data, aes(x=TIMEPOINTS, y=cloneFraction, fill=CONDITION)) +
     geom_boxplot(notch = FALSE, width = 0.5, outlier.shape = NA) +
     geom_point() +
     annotation_logticks(sides = "l") +
@@ -55,7 +55,7 @@ plot_scatteratio_breadth <- function(data, path){
   require(scales)
 
   # Define colors for conditions
-  colors <- c("Healthy" = "#1f77b4", "Lymphomas" = "#d62728")
+  colors <- c("Healthy controls" = "#1f77b4", "Lymphoma patients" = "#d62728")
   
   p <-ggplot(data, aes(x=TIMEPOINTS,y=fraction_sequences, fill=CONDITION)) +
     geom_boxplot(notch = FALSE, width = 0.5, outlier.shape = NA) +
@@ -88,7 +88,7 @@ plot_betweenstats_breadth <- function(df, path){
   require(tidyverse)
   
   
-  colors <- c("Healthy" = "#1f77b4", "Lymphomas" = "#d62728")
+  colors <- c("Healthy controls" = "#1f77b4", "Lymphoma patients" = "#d62728")
 
   p1 <- ggstatsplot::ggwithinstats(data = df,
                                    x = TIMEPOINTS,
@@ -207,7 +207,7 @@ plot_betweenstats_clone_fraction <- function(df, path){
   require(rstatix)
   require(ggpubr)
   
-  colors <- c("Healthy" = "#1f77b4", "Lymphomas" = "#d62728")
+  colors <- c("Healthy controls" = "#1f77b4", "Lymphoma patients" = "#d62728")
 
   p1 <- ggstatsplot::ggwithinstats(data = df,
                                    x = TIMEPOINTS,
@@ -336,6 +336,7 @@ linear_mixed_model <- function(df, model_path){
   # if fraction_sequences is in the columns of the dataframe
   if("fraction_sequences" %in% colnames(df)){
     model <- lmer(fraction_sequences ~ CONDITION * TIMEPOINTS + (1 | SAMPLE), data = df)
+    print(summary(model))
     saveRDS(model, file = paste0(model_path, "lmm_model_breadth.rds"))
     emms <- emmeans(model, specs = ~ TIMEPOINTS | CONDITION, type = "response", adjust = "tukey")
     print(contrast(emms, method = "pairwise"))
@@ -348,6 +349,7 @@ linear_mixed_model <- function(df, model_path){
   # if cloneFraction is in the columns of the dataframe
   else if("cloneFraction" %in% colnames(df)){
     model <- lmer(cloneFraction ~ CONDITION * TIMEPOINTS + (1 | SAMPLE), data = df)
+    print(summary(model))
     saveRDS(model, file = paste0(model_path, "lmm_model_depth.rds"))
     emms <- emmeans(model, specs = ~ TIMEPOINTS | CONDITION, type = "response", adjust = "tukey")
     
@@ -384,35 +386,35 @@ export_lmm_results <- function(model_path){
 
   
   # Rename coefficients
-coef_names <- c(
-  'Lymphoma' = 'CONDITIONLymphomas',  
-  'Time V1' = 'TIMEPOINTSV1',          
-  'Time V3' = 'TIMEPOINTSV3',          
-  'Lymphoma at V1' = 'CONDITIONLymphomas:TIMEPOINTSV1',  
-  'Lymphoma at V3' = 'CONDITIONLymphomas:TIMEPOINTSV3' 
-)
+  #coef_names <- c(
+  #  'Lymphoma' = 'CONDITIONLymphomas',  
+  #  'Time V1' = 'TIMEPOINTSV1',          
+  #  'Time V3' = 'TIMEPOINTSV3',          
+  #  'Lymphoma at V1' = 'CONDITIONLymphomas:TIMEPOINTSV1',  
+  #  'Lymphoma at V3' = 'CONDITIONLymphomas:TIMEPOINTSV3' 
+  #)
 
-  p <- plot_summs(model_breadth, model_depth, ci_level = .95, model.names = c("LMM_Breadth", "LMM_Depth"), coefs = coef_names)
+  #p <- plot_summs(model_breadth, model_depth, ci_level = .95, model.names = c("LMM_Breadth", "LMM_Depth"), coefs = coef_names)
 
-  summary_model_breadth <- summary(model_breadth)$coefficients[, "Pr(>|t|)"]
-  summary_model_depth <- summary(model_depth)$coefficients[, "Pr(>|t|)"]
+  #summary_model_breadth <- summary(model_breadth)$coefficients[, "Pr(>|t|)"]
+  #summary_model_depth <- summary(model_depth)$coefficients[, "Pr(>|t|)"]
 
   # annotate the plot with the p values taken from the models
-  p <- p + annotate("text", x = 0.00055, y = 5.15, label = pvalue_to_asterisk(summary_model_breadth['CONDITIONLymphomas']), size = 5) +
-          annotate("text", x = 0.00055, y = 4.9, label = pvalue_to_asterisk(summary_model_depth['CONDITIONLymphomas']), size = 5) +
-          annotate("text", x = 0.00055, y = 4.15, label = pvalue_to_asterisk(summary_model_breadth['TIMEPOINTSV1']), size = 5) +
-          annotate("text", x = 0.00055, y = 3.9, label = pvalue_to_asterisk(summary_model_depth['TIMEPOINTSV1']), size = 5) +
-          annotate("text", x = 0.00055, y = 3.15, label = pvalue_to_asterisk(summary_model_breadth['TIMEPOINTSV3']), size = 5) +
-          annotate("text", x = 0.00055, y = 2.9, label = pvalue_to_asterisk(summary_model_depth['TIMEPOINTSV3']), size = 5) +
-          annotate("text", x = 0.00055, y = 2.15, label = pvalue_to_asterisk(summary_model_breadth['CONDITIONLymphomas:TIMEPOINTSV1']), size = 5) +
-          annotate("text", x = 0.00055, y = 1.9, label = pvalue_to_asterisk(summary_model_depth['CONDITIONLymphomas:TIMEPOINTSV1']), size = 5) +
-          annotate("text", x = 0.00055, y = 1.15, label = pvalue_to_asterisk(summary_model_breadth['CONDITIONLymphomas:TIMEPOINTSV3']), size = 5) +
-          annotate("text", x = 0.00055, y = 0.9, label = pvalue_to_asterisk(summary_model_depth['CONDITIONLymphomas:TIMEPOINTSV3']), size = 5) +
-    scale_x_continuous(
-      labels = scales::percent_format()  # Format y-axis labels as percentages
-    )
+  #p <- p + annotate("text", x = 0.00055, y = 5.15, label = pvalue_to_asterisk(summary_model_breadth['CONDITIONLymphomas']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 4.9, label = pvalue_to_asterisk(summary_model_depth['CONDITIONLymphomas']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 4.15, label = pvalue_to_asterisk(summary_model_breadth['TIMEPOINTSV1']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 3.9, label = pvalue_to_asterisk(summary_model_depth['TIMEPOINTSV1']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 3.15, label = pvalue_to_asterisk(summary_model_breadth['TIMEPOINTSV3']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 2.9, label = pvalue_to_asterisk(summary_model_depth['TIMEPOINTSV3']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 2.15, label = pvalue_to_asterisk(summary_model_breadth['CONDITIONLymphomas:TIMEPOINTSV1']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 1.9, label = pvalue_to_asterisk(summary_model_depth['CONDITIONLymphomas:TIMEPOINTSV1']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 1.15, label = pvalue_to_asterisk(summary_model_breadth['CONDITIONLymphomas:TIMEPOINTSV3']), size = 5) +
+  #        annotate("text", x = 0.00055, y = 0.9, label = pvalue_to_asterisk(summary_model_depth['CONDITIONLymphomas:TIMEPOINTSV3']), size = 5) +
+  #  scale_x_continuous(
+  #    labels = scales::percent_format()  # Format y-axis labels as percentages
+  #  )
 
-  ggsave(paste0(model_path, "models_summs.png"), p, width = 10)
+  #ggsave(paste0(model_path, "models_summs.png"), p, width = 10)
   
 }
 
@@ -497,8 +499,8 @@ correlation_heatmap <- function(data, plotsDir){
 
   # Define colors for the annotation bars (you can customize these)
   annotation_colors <- list(
-    CONDITION = c("Healthy" = "blue", "Lymphomas" = "red"),  # Replace with your actual conditions
-    TIMEPOINTS = c("baseline" = "yellow", "V1" = "orange", "V3" = "purple"),  # Replace with your actual timepoints
+    CONDITION = c("Healthy controls" = "blue", "Lymphoma patients" = "red"),  # Replace with your actual conditions
+    TIMEPOINTS = c("baseline" = "yellow", "V1 (50 days)" = "orange", "V3 (6 months)" = "purple"),  # Replace with your actual timepoints
     HLA_A = hlaa_colors,
     HLA_B = hlab_colors,
     HLA_C = hlac_colors,
@@ -586,7 +588,7 @@ correlation_heatmap_pertime <- function(data, time, plotsDir){
 
   # Define colors for the annotation bars (you can customize these)
   annotation_colors <- list(
-    CONDITION = c("Healthy" = "blue", "Lymphomas" = "red"),  # Replace with your actual conditions
+    CONDITION = c("Healthy controls" = "blue", "Lymphoma patients" = "red"),  # Replace with your actual conditions
     HLA_A = hlaa_colors,
     HLA_B = hlab_colors,
     HLA_C = hlac_colors,
@@ -665,6 +667,9 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
   require(gridExtra)
   require(dplyr)
   require(broom)
+  require(ggrepel)
+  require(cowplot)
+  require(ggpubr)
 
   # Keep only columns with non-zero variance
   data <- data[, apply(data, 2, var) != 0]  
@@ -740,7 +745,7 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
     labs(x = paste0("PC1 (", round(explained_var[1], 2), "%)"), 
         y = paste0("PC2 (", round(explained_var[2], 2), "%)")) +
     # Customize colors
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     theme_bw() +
     theme(text = element_text(size = 10),
         legend.position = "none") +  # Remove legend here
@@ -754,7 +759,7 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
         axis.ticks = element_blank(),
         #axis.text.y = element_blank(),
         axis.text.x = element_blank()) +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     labs(y = "CovidBreadth", x = '', subtitle = paste("Spearman correlation with PC1:", round(cor_with_pc1, 5))) +
     coord_cartesian(xlim = x_limits)
 
@@ -766,7 +771,7 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
       axis.ticks = element_blank(),
       #axis.text.x = element_blank(),
       axis.text.y = element_blank()) +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     labs(x = "CovidBreadth", y = '', subtitle = paste("Spearman correlation with PC2:", round(cor_with_pc2, 5))) +
     coord_cartesian(ylim = y_limits)
 
@@ -777,7 +782,7 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
   # Extract the legend from the PCA plot
   legend_plot <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = CONDITION, shape = TIMEPOINTS)) +
     geom_point() +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     theme_bw() +
     theme(legend.position = "right")  # Keep the legend here
 
@@ -842,7 +847,7 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
     labs(x = paste0("PC3 (", round(explained_var[3], 2), "%)"), 
         y = paste0("PC4 (", round(explained_var[4], 2), "%)")) +
     # Customize colors
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     theme_bw() +
     theme(text = element_text(size = 8),
         legend.position = "none") +  # Remove legend here
@@ -856,7 +861,7 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
         axis.ticks = element_blank(),
         #axis.text.y = element_blank(),
         axis.text.x = element_blank()) +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     labs(y = "CovidBreadth", x = '', subtitle = paste("Spearman correlation with PC3:", round(cor_with_pc1, 5))) +
     coord_cartesian(xlim = x_limits)
 
@@ -868,7 +873,7 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
       axis.ticks = element_blank(),
       #axis.text.x = element_blank(),
       axis.text.y = element_blank()) +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     labs(x = "CovidBreadth", y = '', subtitle = paste("Spearman correlation with PC4:", round(cor_with_pc2, 5))) +
     coord_cartesian(ylim = y_limits)
 
@@ -879,7 +884,7 @@ pca_biplot_vgenes <- function(data, metadata, plotsDir){
   # Extract the legend from the PCA plot
   legend_plot <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = CONDITION, shape = TIMEPOINTS)) +
     geom_point() +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     theme_bw() +
     theme(legend.position = "right")  # Keep the legend here
 
@@ -1047,7 +1052,7 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
     labs(x = paste0("PC1 (", round(explained_var[1], 2), "%)"), 
         y = paste0("PC2 (", round(explained_var[2], 2), "%)")) +
     # Customize colors
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     theme_bw() +
     theme(text = element_text(size = 8),
         legend.position = "none") +  # Remove legend here
@@ -1061,7 +1066,7 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
         axis.ticks = element_blank(),
         #axis.text.y = element_blank(),
         axis.text.x = element_blank()) +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     labs(y = "CovidBreadth", x = '', subtitle = paste("Spearman correlation with PC1:", round(cor_with_pc1, 5))) +
     coord_cartesian(xlim = x_limits)
 
@@ -1073,7 +1078,7 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
       axis.ticks = element_blank(),
       #axis.text.x = element_blank(),
       axis.text.y = element_blank()) +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     labs(x = "CovidBreadth", y = '', subtitle = paste("Spearman correlation with PC2:", round(cor_with_pc2, 5))) +
     coord_cartesian(ylim = y_limits)
 
@@ -1084,7 +1089,7 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
   # Extract the legend from the PCA plot
   legend_plot <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = CONDITION)) +
     geom_point() +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     theme_bw() +
     theme(legend.position = "right")  # Keep the legend here
 
@@ -1152,7 +1157,7 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
     labs(x = paste0("PC3 (", round(explained_var[3], 2), "%)"), 
         y = paste0("PC4 (", round(explained_var[4], 2), "%)")) +
     # Customize colors
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     theme_bw() +
     theme(text = element_text(size = 8),
         legend.position = "none") +  # Remove legend here
@@ -1166,7 +1171,7 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
         axis.ticks = element_blank(),
         #axis.text.y = element_blank(),
         axis.text.x = element_blank()) +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     labs(y = "CovidBreadth", x = '', subtitle = paste("Spearman correlation with PC3:", round(cor_with_pc1, 5))) +
     coord_cartesian(xlim = x_limits)
 
@@ -1179,7 +1184,7 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
       axis.ticks = element_blank(),
       #axis.text.x = element_blank(),
       axis.text.y = element_blank()) +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     labs(x = "CovidBreadth", y = '', subtitle = paste("Spearman correlation with PC4:", round(cor_with_pc2, 5))) +
     coord_cartesian(ylim = y_limits)
 
@@ -1190,7 +1195,7 @@ pca_biplot_vgenes_pertime <- function(data, metadata, time, plotsDir){
   # Extract the legend from the PCA plot
   legend_plot <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = CONDITION)) +
     geom_point() +
-    scale_color_manual(values = c("Healthy" = "blue", "Lymphomas" = "red")) +
+    scale_color_manual(values = c("Healthy controls" = "blue", "Lymphoma patients" = "red")) +
     theme_bw() +
     theme(legend.position = "right")  # Keep the legend here
 
