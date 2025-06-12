@@ -70,6 +70,46 @@ def plot_viral_ratio(data, plot_dir, filename="other_viral_barplot.png"):
 
     fig.show()
     fig.write_image(f"{plot_dir}{filename}", scale=4)
+    
+    
+### FIGURE 1B
+
+def plot_covid_ratio(data, plot_dir, filename="covid_viral_barplot.png"):
+    """
+    Plots the ratio of clonotypes predicted to be specific to COVID spike.
+
+    Parameters:
+        data (pd.DataFrame): DataFrame containing the data to plot.
+        plot_dir (str): Directory to save the plot.
+        filename (str): Name of the file to save the plot.
+    """
+    
+    fig = make_subplots(rows=1, cols=2, shared_yaxes=True, subplot_titles=("Healthy controls", "Lymphoma patients"))
+
+    for i, condition in enumerate(["Healthy controls", "Lymphoma patients"], start=1):
+        condition_data = data.query('CONDITION == @condition')
+        for timepoint, color in timepoint_colors.items():
+            filtered_data = condition_data.query('TIMEPOINTS == @timepoint')
+            fig.add_trace(
+                go.Bar(
+                    x=filtered_data["SAMPLE"], y=filtered_data["viral_ratio"],
+                    name=timepoint, marker=dict(color=color, line=dict(width=0.5)),
+                    showlegend=(i == 1)
+                ),
+                row=1, col=i
+            )
+
+    fig.update_layout(
+        font=dict(family=FONT, size=12), barmode='group', bargap=0.1,
+        title_text="Ratio of clonotypes predicted to be specific to SARS-CoV-2 spike",
+        height=600, width=1200, template="plotly_white",
+        legend_title="Timepoints"
+    ).update_xaxes(title_text="Sample", tickangle=45, showgrid=True).update_yaxes(
+        title_text="Viral Ratio", tickangle=45, showgrid=False
+    )
+
+    fig.show()
+    fig.write_image(f"{plot_dir}{filename}", scale=4)
 
 
 ### FIGURES 2  
@@ -108,6 +148,21 @@ def plot_cdr3_length_distribution(kolmogorov_data, timepoints, plot_dir):
         # figure size
         plt.gcf().set_size_inches(10, 8)
         plt.savefig(f'{plot_dir}{tp}_cdr3_length_distribution.png', dpi=600)
+        plt.close()
+        
+        plot = sns.displot(
+            data=kolmogorov_data.query(f'TIMEPOINTS == "{tp}"'), 
+            x="CDR3_length", kind="kde", hue="CONDITION",
+            palette=patient_colors,
+        )
+        plt.title(f"Covid specific beta chain length destribution at {tp}")
+        plt.text(
+            0.9, 0.9, f'Kolmogorov-Smirnov statistic: {ks_stat:.4f}\np-value: {ks_pval:.4f}', 
+            ha='center', va='top', transform=plt.gca().transAxes
+        )
+        # figure size
+        plt.gcf().set_size_inches(10, 8)
+        plt.savefig(f'{plot_dir}{tp}_kde_cdr3_length_distribution.png', dpi=600)
         plt.close()
 
 
