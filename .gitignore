@@ -92,17 +92,17 @@ cython_debug/
 
 
 # extensions
-*.csv
-*.tsv
-*.txt
+#*.csv
+#*.tsv
+#*.txt
 *.pptx
 *.pdf
 *.docx
-*.xlsx
+#*.xlsx
 *.Rproj
 
 # directories
-data/
+#data/
 tcrex_tasks/
 results/
 clustcr_batch_tmp*/
