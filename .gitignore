@@ -104,7 +104,9 @@ cython_debug/
 # directories
 #data/
 tcrex_tasks/
-results/
+results/old_plots/
+results/processed_data/
+results/models/
 clustcr_batch_tmp*/
 
 
